@@ -38,7 +38,7 @@ class _MainMenuPageState extends State<MainMenuPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildMenuButton(context, "QC JOB", Icons.assignment, Colors.blue, QCPostalEntryPage()),
+            _buildMenuButton(context, "QC JOB", Icons.assignment, Colors.blue, EnterPostalPage()),
             SizedBox(height: 20),
             // _buildMenuButton(context, "REPORTING", Icons.bar_chart, Colors.green, ReportingMenuPage()),
           ],
