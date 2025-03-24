@@ -2,12 +2,14 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:jwt_decoder/jwt_decoder.dart';  // For decoding JWT token
+import 'package:google_sign_in/google_sign_in.dart'; // Import the GoogleSignIn package
 import '../utils/constants.dart';
 import 'package:flutter/material.dart'; // For Navigator
 import '../pages/google_sign_in_page.dart';
 
 class AuthService {
   final FlutterSecureStorage _storage = FlutterSecureStorage();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']); // Create an instance of GoogleSignIn
 
   // Load stored tokens from secure storage
   Future<Map<String, String?>> loadTokens() async {
@@ -58,8 +60,8 @@ class AuthService {
 
         return newAccessToken;
       } else {
-      await _clearTokens();  // Clear both tokens
-      _redirectToSignIn(context);  // Redirect to Google Sign-In page
+        await _clearTokens();  // Clear both tokens
+        _redirectToSignIn(context);  // Redirect to Google Sign-In page
         print('Failed to refresh access token: ${response.body}');
         return null;
       }
@@ -69,7 +71,7 @@ class AuthService {
     }
   }
 
-  // Log out the user by deleting tokens
+  // Log out the user by deleting tokens and Google account information
   Future<void> _clearTokens() async {
     await _storage.delete(key: 'accessToken');
     await _storage.delete(key: 'refreshToken');
@@ -83,9 +85,14 @@ class AuthService {
     );
   }
 
-  // Logout function to clear tokens and redirect to sign-in page
+  // Logout function to clear tokens, sign out of Google, and redirect to sign-in page
   Future<void> logout(BuildContext context) async {
     await _clearTokens();  // Clear the tokens
+    
+    // Sign out of Google to clear cached account info
+    await _googleSignIn.signOut();
+    print('User signed out from Google');
+
     _redirectToSignIn(context);  // Redirect to the sign-in page
   }
 }

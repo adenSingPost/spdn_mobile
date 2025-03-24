@@ -98,10 +98,6 @@ void _saveForm() async {
     );
     
     // Clear the observations and photos if no return mailbox is selected
-    setState(() {
-      _observationsController.clear();  // Clear observations
-      _photoPaths.clear();  // Clear photos
-    });
 
     return;
   }
