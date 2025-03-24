@@ -85,27 +85,65 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
     );
   }
 
-  /// Save the form and exit
-  void _saveForm() async {
-    await _saveDraft();
-    setState(() => _formCompleted = true);
-    widget.onSave(true);
-    Navigator.pop(context);
+void _saveForm() async {
+  // Ensure either 'No return mailbox' is checked, or one of the return mailbox status options is selected
+  if (!_noReturnMailbox && _returnMailboxStatus == null) {
+    // If neither is selected, show an error message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Please select either 'Return Mailbox Cleared', 'Return Mailbox Not Cleared', or check 'No return mailbox' before saving.",
+        ),
+      ),
+    );
+    
+    // Clear the observations and photos if no return mailbox is selected
+    setState(() {
+      _observationsController.clear();  // Clear observations
+      _photoPaths.clear();  // Clear photos
+    });
+
+    return;
   }
 
+  // Save draft to SharedPreferences
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  Map<String, dynamic> draftData = {
+    'postalCode': widget.postalCode,
+    'buildingNumber': widget.buildingNumber,
+    'returnMailboxStatus': _returnMailboxStatus,
+    'observations': _observationsController.text,
+    'photoPaths': _photoPaths, // Save multiple photos
+    'noReturnMailbox': _noReturnMailbox,
+  };
+
+  await prefs.setString('return_mailbox_draft', json.encode(draftData));
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Draft saved successfully!")),
+  );
+
+  // Mark form as completed and call the callback
+  setState(() => _formCompleted = true);
+  widget.onSave(true);
+
+  // Close the screen after saving
+  Navigator.pop(context);
+}
+
+
   /// Pick a photo from the gallery or camera
-  Future<void> _pickPhoto() async {
+  Future<void> _pickPhoto(ImageSource source) async {
     if (_photoPaths.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You can only upload up to 5 photos.")),
+        const SnackBar(content: Text("You can upload a maximum of 5 photos.")),
       );
       return;
     }
 
-    final XFile? image = await _picker.pickImage(source: ImageSource.camera); // Use ImageSource.gallery for gallery
-    if (image != null) {
+    final XFile? photo = await _picker.pickImage(source: source);
+    if (photo != null) {
       setState(() {
-        _photoPaths.add(image.path);
+        _photoPaths.add(photo.path);
       });
     }
   }
@@ -132,127 +170,134 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
     setState(() {
       _noReturnMailbox = value ?? false;
       if (_noReturnMailbox) {
-        _returnMailboxStatus = null; // Clear radio button selection when checking "No return mailbox"
+        _returnMailboxStatus = null; // Clear the return mailbox status when "No return mailbox" is checked
+        _photoPaths.clear(); // Clear all photos when "No return mailbox" is checked
       }
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Return Mailbox Checklist")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Display postal code & building number
-            Text(
-              "Postal Code: ${widget.postalCode}",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              "Building Number: ${widget.buildingNumber}",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
 
-            // Return Mailbox Checklist
-            const Text(
-              "Return Mailbox Checklist",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
 
-            // Radio buttons for mailbox status
-            RadioListTile<int>(
-              title: const Text("Return Mailbox Cleared"),
-              value: 1,
-              groupValue: _returnMailboxStatus,
-              onChanged: _onRadioChanged,
-            ),
-            RadioListTile<int>(
-              title: const Text("Return Mailbox Not Cleared"),
-              value: 2,
-              groupValue: _returnMailboxStatus,
-              onChanged: _onRadioChanged,
-            ),
-            const SizedBox(height: 10),
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: const Text("Return Mailbox Checklist")),
+    body: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Display postal code & building number
+          Text(
+            "Postal Code: ${widget.postalCode}",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            "Building Number: ${widget.buildingNumber}",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
 
-            // Observations text input
-            TextField(
-              controller: _observationsController,
-              decoration: const InputDecoration(labelText: "Type observations"),
-            ),
-            const SizedBox(height: 10),
+          // Return Mailbox Checklist
+          const Text(
+            "Return Mailbox Checklist",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
 
-            // Upload photo section
-            const Text(
-              "Upload Photos (Max: 5)",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: _pickPhoto,
-                  child: const Text("Capture Photo"),
-                ),
-                const SizedBox(width: 10),
-                Text("${_photoPaths.length} / 5 uploaded"),
-              ],
-            ),
-            const SizedBox(height: 10),
+          // Radio buttons for mailbox status (disabled if "No return mailbox" is checked)
+          RadioListTile<int>(
+            title: const Text("Return Mailbox Cleared"),
+            value: 1,
+            groupValue: _returnMailboxStatus,
+            onChanged: _noReturnMailbox ? null : _onRadioChanged, // Disable when noReturnMailbox is checked
+          ),
+          RadioListTile<int>(
+            title: const Text("Return Mailbox Not Cleared"),
+            value: 2,
+            groupValue: _returnMailboxStatus,
+            onChanged: _noReturnMailbox ? null : _onRadioChanged, // Disable when noReturnMailbox is checked
+          ),
+          const SizedBox(height: 10),
 
-            // Display uploaded photos
-            Wrap(
-              spacing: 8,
-              children: _photoPaths.asMap().entries.map((entry) {
-                int index = entry.key;
-                String photoPath = entry.value;
-                return Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    Image.file(
-                      File(photoPath),
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
+          // Observations text input (disabled if "No return mailbox" is checked)
+          TextField(
+            controller: _observationsController,
+            decoration: const InputDecoration(labelText: "Type observations"),
+            enabled: !_noReturnMailbox, // Disable if "No return mailbox" is checked
+          ),
+          const SizedBox(height: 10),
+
+          // Upload photo section (disabled if "No return mailbox" is checked)
+          const Text(
+            "Upload Photos (Max: 5)",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          Row(
+            children: [
+              ElevatedButton(
+                onPressed: _noReturnMailbox ? null : () => _pickPhoto(ImageSource.camera), // Disable when "No return mailbox" is checked
+                child: const Text("Take Photo"),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: _noReturnMailbox ? null : () => _pickPhoto(ImageSource.gallery), // Disable when "No return mailbox" is checked
+                child: const Text("Upload Photo"),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Display uploaded photos (disabled if "No return mailbox" is checked)
+          Wrap(
+            spacing: 8,
+            children: _photoPaths.asMap().entries.map((entry) {
+              int index = entry.key;
+              String photoPath = entry.value;
+              return Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  Image.file(
+                    File(photoPath),
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                  ),
+                  GestureDetector(
+                    onTap: _noReturnMailbox ? null : () => _removePhoto(index), // Disable removal when "No return mailbox" is checked
+                    child: const Icon(
+                      Icons.cancel,
+                      color: Colors.red,
                     ),
-                    GestureDetector(
-                      onTap: () => _removePhoto(index),
-                      child: const Icon(
-                        Icons.cancel,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
 
-            // Checkbox for "No return mailbox"
-            CheckboxListTile(
-              title: const Text("No return mailbox"),
-              value: _noReturnMailbox,
-              onChanged: _onNoReturnMailboxChanged,
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            const SizedBox(height: 20),
+          // Checkbox for "No return mailbox"
+          CheckboxListTile(
+            title: const Text("No return mailbox"),
+            value: _noReturnMailbox,
+            onChanged: _onNoReturnMailboxChanged,
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+          const SizedBox(height: 20),
 
-            // Save as Draft button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: _saveForm,
-                  child: const Text("Save as Draft"),
-                ),
-              ],
-            ),
-          ],
-        ),
+          // Save as Draft button (enabled only when the form is not in the "No return mailbox" state)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: _saveForm, // Disable when "No return mailbox" is checked
+                child: const Text("Save as Draft"),
+              ),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -158,23 +158,24 @@ Future<void> _loadDraft() async {
     return true;
   }
 
-  void _saveForm() async {
-    // Validate that each row is filled if misdelivery details are expected.
-  if (!_noMisdeliveryFound && _inputs.isNotEmpty && !_areAllRowsFilled()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              "Please fill in all fields in each row or remove empty rows before saving."),
-        ),
-      );
-      return;
-    }
-
-    await _saveDraft();
-    setState(() => _formCompleted = true);
-    widget.onSave(true);
-    Navigator.pop(context);
+void _saveForm() async {
+  // Check if there are rows or if "No Misdelivery Found" is checked
+  if ((_inputs.isEmpty && !_noMisdeliveryFound) || (_inputs.isNotEmpty && !_areAllRowsFilled())) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+            "Please fill in all fields in each row or remove empty rows before saving, or ensure 'No Misdelivery Found' is checked."),
+      ),
+    );
+    return;
   }
+
+  await _saveDraft();
+  setState(() => _formCompleted = true);
+  widget.onSave(true);
+  Navigator.pop(context);
+}
+
 
   /// Add a new row with empty fields.
   void _addRow() {

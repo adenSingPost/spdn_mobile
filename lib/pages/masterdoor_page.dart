@@ -86,12 +86,24 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
   }
 
   /// Save the form and exit
-  void _saveForm() async {
-    await _saveDraft();
-    setState(() => _formCompleted = true);
-    widget.onSave(true);
-    Navigator.pop(context);
+void _saveForm() async {
+  // Check if Masterdoor status is selected or Masterdoor is in good condition is checked
+  // Also check if there are observations filled in (if not in good condition)
+  if ((_masterDoorStatus == null && !_masterDoorGoodCondition) && _observationsController.text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please select a Masterdoor issue, check 'Masterdoor is in Good Condition', or add an observation before saving."),
+      ),
+    );
+    return;
   }
+
+  await _saveDraft();
+  setState(() => _formCompleted = true);
+  widget.onSave(true);
+  Navigator.pop(context);
+}
+
 
   /// Pick a photo from gallery or capture a new photo
   Future<void> _pickPhoto(ImageSource source) async {
@@ -164,29 +176,35 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
             ),
             const SizedBox(height: 10),
 
-            // Radio buttons for masterdoor status
-            RadioListTile<int>(
-              title: const Text("Masterdoor Faulty, Latch Loose"),
-              value: 1,
-              groupValue: _masterDoorStatus,
-              onChanged: _onRadioChanged,
-            ),
-            RadioListTile<int>(
-              title: const Text("Masterdoor Panel Not Aligned, Need to Adjust Hinge"),
-              value: 2,
-              groupValue: _masterDoorStatus,
-              onChanged: _onRadioChanged,
-            ),
+            // Radio buttons for masterdoor status (disabled when master door is in good condition)
+            if (!_masterDoorGoodCondition)
+              Column(
+                children: [
+                  RadioListTile<int>(
+                    title: const Text("Masterdoor Faulty, Latch Loose"),
+                    value: 1,
+                    groupValue: _masterDoorStatus,
+                    onChanged: _onRadioChanged,
+                  ),
+                  RadioListTile<int>(
+                    title: const Text("Masterdoor Panel Not Aligned, Need to Adjust Hinge"),
+                    value: 2,
+                    groupValue: _masterDoorStatus,
+                    onChanged: _onRadioChanged,
+                  ),
+                ],
+              ),
             const SizedBox(height: 10),
 
-            // Observations text input
+            // Observations text input (disabled when master door is in good condition)
             TextField(
               controller: _observationsController,
               decoration: const InputDecoration(labelText: "Type other observations"),
+              enabled: !_masterDoorGoodCondition, // Disable if door is good
             ),
             const SizedBox(height: 10),
 
-            // Upload or Capture Photo section
+            // Upload or Capture Photo section (disabled when master door is in good condition)
             const Text(
               "Upload Photos (Max 5)",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -194,12 +212,12 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
             Row(
               children: [
                 ElevatedButton(
-                  onPressed: () => _pickPhoto(ImageSource.camera),
+                  onPressed: _masterDoorGoodCondition ? null : () => _pickPhoto(ImageSource.camera),
                   child: const Text("Take Photo"),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: () => _pickPhoto(ImageSource.gallery),
+                  onPressed: _masterDoorGoodCondition ? null : () => _pickPhoto(ImageSource.gallery),
                   child: const Text("Upload Photo"),
                 ),
               ],
