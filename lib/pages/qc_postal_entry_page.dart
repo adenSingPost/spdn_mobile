@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/postal_code_service.dart';
 import 'qc_job_menu_page.dart';
-import 'package:flutter/material.dart';
 
 class EnterPostalPage extends StatefulWidget {
   @override
@@ -10,6 +9,7 @@ class EnterPostalPage extends StatefulWidget {
 
 class _EnterPostalPageState extends State<EnterPostalPage> {
   final TextEditingController _postalController = TextEditingController();
+  final TextEditingController _nestController = TextEditingController();
   String? _buildingNumber;
   bool _loading = false;
 
@@ -25,7 +25,11 @@ class _EnterPostalPageState extends State<EnterPostalPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => QCMainMenu(postalCode: _postalController.text, buildingNumber: _buildingNumber!),
+          builder: (_) => QCMainMenu(
+            postalCode: _postalController.text,
+            buildingNumber: _buildingNumber!,
+            nest: _nestController.text.isEmpty ? 0 : int.parse(_nestController.text), // Default to 0 if empty
+          ),
         ),
       );
     }
@@ -45,10 +49,18 @@ class _EnterPostalPageState extends State<EnterPostalPage> {
               decoration: InputDecoration(labelText: 'Enter Postal Code'),
             ),
             SizedBox(height: 20),
-            _loading ? CircularProgressIndicator() : ElevatedButton(
-              onPressed: _fetchBuildingNumber,
-              child: Text('Continue'),
+            TextField(
+              controller: _nestController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(labelText: 'Enter Nest (Optional)'),
             ),
+            SizedBox(height: 20),
+            _loading
+                ? CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _fetchBuildingNumber,
+                    child: Text('Continue'),
+                  ),
           ],
         ),
       ),

@@ -11,8 +11,9 @@ import '../services/auth_service.dart'; // Import the AuthService
 class QCMainMenu extends StatefulWidget {
   final String postalCode;
   final String buildingNumber;
+  final int nest;
 
-  QCMainMenu({required this.postalCode, required this.buildingNumber});
+  QCMainMenu({required this.postalCode, required this.buildingNumber,required this.nest});
 
   @override
   _QCMainMenuState createState() => _QCMainMenuState();
@@ -47,7 +48,8 @@ class _QCMainMenuState extends State<QCMainMenu> {
   // _submitAll method to call sendAllDraftsToBackend
   Future<void> _submitAll(BuildContext context) async {
     // Call sendAllDraftsToBackend to submit drafts to the backend
-    await _draftService.sendAllDraftsToBackend(context, widget.postalCode);  // Pass the postalCode from widget
+    await _draftService.sendAllDraftsToBackend(context, widget.postalCode, widget.nest
+); 
 
     // You can show a confirmation message after submitting drafts
     ScaffoldMessenger.of(context).showSnackBar(

@@ -178,7 +178,7 @@ void _saveForm() async {
 Widget build(BuildContext context) {
   return Scaffold(
     appBar: AppBar(title: const Text("Return Mailbox Checklist")),
-    body: Padding(
+    body: SingleChildScrollView( // Add this wrapper
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,4 +296,6 @@ Widget build(BuildContext context) {
     ),
   );
 }
+
+
 }

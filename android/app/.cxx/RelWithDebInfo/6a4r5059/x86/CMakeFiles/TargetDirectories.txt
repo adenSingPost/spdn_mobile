@@ -1,0 +1,2 @@
+/Users/esam/spdn_mobile/android/app/.cxx/RelWithDebInfo/6a4r5059/x86/CMakeFiles/rebuild_cache.dir
+/Users/esam/spdn_mobile/android/app/.cxx/RelWithDebInfo/6a4r5059/x86/CMakeFiles/edit_cache.dir

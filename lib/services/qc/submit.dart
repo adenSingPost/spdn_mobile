@@ -15,7 +15,7 @@ class DraftService {
   DraftService(this._authService);
 
   // Send all drafts with images to the backend
-  Future<void> sendAllDraftsToBackend(BuildContext context, postalCode) async {
+  Future<void> sendAllDraftsToBackend(BuildContext context, postalCode,int nest) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
 
     // Fetch all drafts saved in SharedPreferences dynamically
@@ -34,7 +34,7 @@ class DraftService {
       String? draftJson = prefs.getString(key);
       if (draftJson != null) {
         Map<String, dynamic> draft = jsonDecode(draftJson);
-        print(draft);
+        // print(draft);
         // Add the draft data to the combinedData map
         combinedData[key] = draft;
 
@@ -60,8 +60,9 @@ class DraftService {
 
       // Prepare the API request to send data
       var request = http.MultipartRequest('POST', url)
-        ..fields['draftData'] = jsonEncode(combinedData); // Add all drafts
-
+        ..fields['draftData'] = jsonEncode(combinedData)  // Add all drafts
+        ..fields['postalCode'] = postalCode  // Add postalCode field
+        ..fields['nest'] = nest.toString();  // Add the nest field
       // Add images as multipart files
       if (imagesData.isNotEmpty) {
         for (var key in imagesData.keys) {

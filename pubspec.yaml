@@ -12,12 +12,14 @@ dependencies:
   flutter:
     sdk: flutter
   google_sign_in: ^5.0.7
-  flutter_secure_storage: ^5.0.2
+  flutter_secure_storage: ^9.2.4  # Use the latest stable version
   http: ^1.2.2
   jwt_decoder: ^2.0.1  # Add this line
   shared_preferences: ^2.0.15
   image_picker: ^1.1.2
   intl: ^0.17.0  # Add this line
+  flutter_plugin_android_lifecycle: ^2.0.27  # Update to the latest version
+
 
 dev_dependencies:
   flutter_test:

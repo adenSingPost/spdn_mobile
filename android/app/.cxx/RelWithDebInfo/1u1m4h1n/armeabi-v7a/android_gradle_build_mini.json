@@ -1,0 +1,20 @@
+{
+  "buildFiles": [
+    "/Users/esam/development/flutter/packages/flutter_tools/gradle/src/main/groovy/CMakeLists.txt"
+  ],
+  "cleanCommandsComponents": [
+    [
+      "/Users/esam/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+      "-C",
+      "/Users/esam/spdn_mobile/android/app/.cxx/RelWithDebInfo/1u1m4h1n/armeabi-v7a",
+      "clean"
+    ]
+  ],
+  "buildTargetsCommandComponents": [
+    "/Users/esam/Library/Android/sdk/cmake/3.22.1/bin/ninja",
+    "-C",
+    "/Users/esam/spdn_mobile/android/app/.cxx/RelWithDebInfo/1u1m4h1n/armeabi-v7a",
+    "{LIST_OF_TARGETS_TO_BUILD}"
+  ],
+  "libraries": {}
+}

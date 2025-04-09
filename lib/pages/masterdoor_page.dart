@@ -149,11 +149,12 @@ void _saveForm() async {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Masterdoor Checklist")),
-      body: Padding(
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: const Text("Masterdoor Checklist")),
+    body: SingleChildScrollView(  // Add this to make the content scrollable
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,6 +268,7 @@ void _saveForm() async {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
