@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../utils/constants.dart';
 import './main_menu_page.dart';
+import '../services/auth_service.dart';
 void main() {
   runApp(MyApp());
 }
@@ -28,6 +29,8 @@ class GoogleSignInPage extends StatefulWidget {
 }
 
 class _GoogleSignInPageState extends State<GoogleSignInPage> {
+  String? _errorMessage;
+  final _authService = AuthService();
   final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']);
   final FlutterSecureStorage _storage = FlutterSecureStorage();
 
@@ -57,44 +60,67 @@ Future<void> _signInWithGoogle() async {
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
     // Send the access token to backend for validation and processing
-    final response = await http.post(
-      Uri.parse('${Constants.backendUrl}/auth/google'),
-      body: json.encode({
-        'access_token': googleAuth.accessToken,
-      }),
-      headers: {'Content-Type': 'application/json'},
-    );
+// Send the access token to backend for validation and processing
+final response = await http.post(
+  Uri.parse('${Constants.backendUrl}/auth/google'),
+  body: json.encode({
+    'access_token': googleAuth.accessToken,
+  }),
+  headers: {'Content-Type': 'application/json'},
+);
 
-    if (response.statusCode == 200) {
-      // Parse the response and save tokens
-      final responseData = json.decode(response.body);
-      String accessToken = responseData['accessToken'];
-      String refreshToken = responseData['refreshToken'];
+  if (response.statusCode == 200) {
+    // Parse the response and save tokens
+    final responseData = json.decode(response.body);
+    String accessToken = responseData['accessToken'];
+    String refreshToken = responseData['refreshToken'];
 
-      // Securely store the tokens
-      await _storage.write(key: 'accessToken', value: accessToken);
-      await _storage.write(key: 'refreshToken', value: refreshToken);
+    // Securely store the tokens
+    await _storage.write(key: 'accessToken', value: accessToken);
+    await _storage.write(key: 'refreshToken', value: refreshToken);
 
-      // Navigate to Main Menu
-      Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => MainMenuPage()));
-    }
-  } catch (e) {
-    print("Error during Google sign-in: $e");
+    // Navigate to Main Menu
+    Navigator.pushReplacement(
+      context, MaterialPageRoute(builder: (_) => MainMenuPage()));
+  } else if (response.statusCode == 404) {
+    print('User not found. Logging out.');
+      setState(() {
+    _errorMessage = 'User not found. Please contact support.';
+  });
+    _authService.logout(context,timeout: true); // Trigger logout if user not found
+  } else {
+    print('Unexpected error: ${response.statusCode}');
   }
+
+    } catch (e) {
+      print("Error during Google sign-in: $e");
+    }
+  }
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: Text('Google Sign-In')),
+    body: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ElevatedButton(
+            onPressed: _signInWithGoogle,
+            child: Text('Sign in with Google'),
+          ),
+          if (_errorMessage != null) ...[
+            SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Colors.red),
+            ),
+          ]
+        ],
+      ),
+    ),
+  );
 }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Google Sign-In')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: _signInWithGoogle,
-          child: Text('Sign in with Google'),
-        ),
-      ),
-    );
-  }
 }
 

@@ -15,7 +15,7 @@ class DraftService {
   DraftService(this._authService);
 
   // Send all drafts with images to the backend
-  Future<void> sendAllDraftsToBackend(BuildContext context, postalCode,int nest) async {
+  Future<void> sendAllDraftsToBackend(BuildContext context, postalCode, int nest) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
 
     // Fetch all drafts saved in SharedPreferences dynamically
@@ -34,7 +34,6 @@ class DraftService {
       String? draftJson = prefs.getString(key);
       if (draftJson != null) {
         Map<String, dynamic> draft = jsonDecode(draftJson);
-        // print(draft);
         // Add the draft data to the combinedData map
         combinedData[key] = draft;
 
@@ -63,6 +62,7 @@ class DraftService {
         ..fields['draftData'] = jsonEncode(combinedData)  // Add all drafts
         ..fields['postalCode'] = postalCode  // Add postalCode field
         ..fields['nest'] = nest.toString();  // Add the nest field
+
       // Add images as multipart files
       if (imagesData.isNotEmpty) {
         for (var key in imagesData.keys) {
@@ -107,6 +107,28 @@ class DraftService {
     } catch (error) {
       print('Failed to call API: $error');
     }
+  }
+
+  // Function to clear all drafts in SharedPreferences
+  Future<void> clearAllDraft(BuildContext context) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    
+    // List of all draft keys you want to clear
+    List<String> draftKeys = [
+      'misDeliveryDraft',
+      'master_door_draft',
+      'return_mailbox_draft'
+    ];
+
+    // Remove all drafts from SharedPreferences
+    for (String key in draftKeys) {
+      await prefs.remove(key); // Remove draft data
+    }
+
+    // Optionally show a confirmation message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('All drafts have been cleared!')),
+    );
   }
 
   String generateNewFilename(String draftKey, String postalCode, File imageFile, int index) {

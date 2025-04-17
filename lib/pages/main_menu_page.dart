@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+// import 'package:spdn_mobile/pages/transaction_page.dart';
 import '../pages/google_sign_in_page.dart';
 import '../services/auth_service.dart';
 import '../pages/qc_postal_entry_page.dart';
 // import '../pages/reporting_menu_page.dart';
+import '../pages/transaction_page.dart';
 
 class MainMenuPage extends StatefulWidget {
   @override
@@ -34,16 +36,19 @@ class _MainMenuPageState extends State<MainMenuPage> {
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildMenuButton(context, "QC JOB", Icons.assignment, Colors.blue, EnterPostalPage()),
-            SizedBox(height: 20),
-            // _buildMenuButton(context, "REPORTING", Icons.bar_chart, Colors.green, ReportingMenuPage()),
-          ],
-        ),
-      ),
+body: Center(
+  child: Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      _buildMenuButton(context, "QC JOB", Icons.assignment, Colors.blue, EnterPostalPage()),
+      SizedBox(height: 20),
+      _buildMenuButton(context, "TRANSACTIONS", Icons.receipt_long, Colors.deepPurple, TransactionsPage()),
+      SizedBox(height: 20),
+      // _buildMenuButton(context, "REPORTING", Icons.bar_chart, Colors.green, ReportingMenuPage()),
+    ],
+  ),
+),
+
     );
   }
 

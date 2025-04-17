@@ -86,13 +86,18 @@ class AuthService {
   }
 
   // Logout function to clear tokens, sign out of Google, and redirect to sign-in page
-  Future<void> logout(BuildContext context) async {
-    await _clearTokens();  // Clear the tokens
-    
-    // Sign out of Google to clear cached account info
-    await _googleSignIn.signOut();
-    print('User signed out from Google');
+Future<void> logout(BuildContext context, {bool timeout = false}) async {
+  await _clearTokens(); // Clear the tokens
 
-    _redirectToSignIn(context);  // Redirect to the sign-in page
+  if (timeout) {
+    // Wait for 3 seconds before signing out
+    await Future.delayed(Duration(milliseconds: 3000));
   }
+
+  // Sign out of Google to clear cached account info
+  await _googleSignIn.signOut();
+  print('User signed out from Google');
+
+  _redirectToSignIn(context); // Redirect to the sign-in page
+}
 }
