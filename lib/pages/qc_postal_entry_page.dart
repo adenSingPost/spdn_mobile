@@ -14,6 +14,26 @@ class _EnterPostalPageState extends State<EnterPostalPage> {
   bool _loading = false;
 
   Future<void> _fetchBuildingNumber() async {
+    if (_postalController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a postal code'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_postalController.text.trim().length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Postal code must be 6 digits'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
     String? result = await PostalCodeService.fetchBuildingNumber(_postalController.text);
     setState(() {
@@ -21,15 +41,22 @@ class _EnterPostalPageState extends State<EnterPostalPage> {
       _loading = false;
     });
 
-    if (_buildingNumber != null) {
+    if (result != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (_) => QCMainMenu(
             postalCode: _postalController.text,
-            buildingNumber: _buildingNumber!,
-            nest: _nestController.text.isEmpty ? 0 : int.parse(_nestController.text), // Default to 0 if empty
+            buildingNumber: result,
+            nest: _nestController.text.isEmpty ? 0 : int.parse(_nestController.text),
           ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid postal code. Please check and try again.'),
+          backgroundColor: Colors.red,
         ),
       );
     }

@@ -1,53 +1,43 @@
 import 'dart:convert';
 
 class MisdeliveryTransaction {
+  final int id;
   final int mainDraftId;
   final String blockNumber;
   final String postalCode;
   final String date;
   final List<Misdelivery> misdeliveries;
+  final MainDraft? mainDraft;
 
   MisdeliveryTransaction({
+    required this.id,
     required this.mainDraftId,
     required this.blockNumber,
     required this.postalCode,
     required this.date,
-    List<Misdelivery>? misdeliveries,
-  }) : this.misdeliveries = misdeliveries ?? [];
+    required this.misdeliveries,
+    this.mainDraft,
+  });
 
-  factory MisdeliveryTransaction.fromJson(int key, Map<String, dynamic> value) {
-    print('Parsing MisdeliveryTransaction JSON:');
-    print('  Key: $key');
-    print('  Value: $value');
-    
-    final mainDraft = value['mainDraft'] ?? {};
-    List<Misdelivery> misdeliveriesList = [];
-    
-    if (value['misdeliveries'] != null) {
-      try {
-        print('  Misdeliveries array: ${value['misdeliveries']}');
-        misdeliveriesList = (value['misdeliveries'] as List)
-            .map((m) {
-              print('  Processing misdelivery: $m');
-              return Misdelivery.fromJson(m);
-            })
-            .toList();
-      } catch (e) {
-        print('Error parsing misdeliveries: $e');
-      }
-    }
-    
+  factory MisdeliveryTransaction.fromJson(int key, Map<String, dynamic> json) {
     return MisdeliveryTransaction(
-      mainDraftId: key,
-      blockNumber: mainDraft['block_number']?.toString() ?? '',
-      postalCode: (mainDraft['postal_code'] ?? '').toString(),
-      date: mainDraft['createdAt']?.toString() ?? '',
-      misdeliveries: misdeliveriesList,
+      id: key,
+      mainDraftId: json['mainDraft']?['id'] ?? 0,
+      blockNumber: json['mainDraft']?['block_number'] ?? '',
+      postalCode: json['mainDraft']?['postal_code']?.toString() ?? '',
+      date: json['mainDraft']?['createdAt'] ?? '',
+      misdeliveries: (json['misdeliveries'] as List<dynamic>? ?? [])
+          .map((item) => Misdelivery.fromJson(item))
+          .toList(),
+      mainDraft: json['mainDraft'] != null 
+          ? MainDraft.fromJson(json['mainDraft']) 
+          : null,
     );
   }
 
-  // 👇 This is the getter you're missing
-  String get displayTitle => 'Misdelivery #$mainDraftId';
+  String get displayTitle {
+    return '$blockNumber - $postalCode';
+  }
 }
 
 class Misdelivery {
@@ -68,7 +58,6 @@ class Misdelivery {
   });
 
   factory Misdelivery.fromJson(Map<String, dynamic> json) {
-    print('Parsing Misdelivery JSON: $json'); // Debug log
     Map<String, dynamic> parseJsonString(String? jsonStr) {
       if (jsonStr == null) return {};
       try {
@@ -79,16 +68,45 @@ class Misdelivery {
       }
     }
 
-    final id = json['id'];
-    print('Misdelivery ID from JSON: $id'); // Debug log
-
     return Misdelivery(
-      id: id ?? 0,
+      id: json['id'] ?? 0,
       foundAt: parseJsonString(json['foundAt']),
       meantFor: parseJsonString(json['meantFor']),
       mainDraftId: json['main_draft_id'] ?? 0,
       isPostalCode: json['isPostalCode'] ?? false,
       createdAt: json['createdAt']?.toString() ?? '',
+    );
+  }
+}
+
+class MainDraft {
+  final int id;
+  final int userId;
+  final int postalCode;
+  final String blockNumber;
+  final int nest;
+  final String createdAt;
+  final String updatedAt;
+
+  MainDraft({
+    required this.id,
+    required this.userId,
+    required this.postalCode,
+    required this.blockNumber,
+    required this.nest,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory MainDraft.fromJson(Map<String, dynamic> json) {
+    return MainDraft(
+      id: json['id'] ?? 0,
+      userId: json['user_id'] ?? 0,
+      postalCode: json['postal_code'] ?? 0,
+      blockNumber: json['block_number'] ?? '',
+      nest: json['nest'] ?? 0,
+      createdAt: json['createdAt'] ?? '',
+      updatedAt: json['updatedAt'] ?? '',
     );
   }
 }

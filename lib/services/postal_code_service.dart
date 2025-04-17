@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class PostalCodeService {
-  static Future<String> fetchBuildingNumber(String postalCode) async {
+  static Future<String?> fetchBuildingNumber(String postalCode) async {
     if (postalCode.length != 6) {
-      return 'Invalid';
+      return null;
     }
 
     var url = Uri.parse('https://www.sglocate.com/api/json/searchwithpostcode.aspx');
@@ -23,9 +23,10 @@ class PostalCodeService {
     if (response.statusCode == 200) {
       var data = jsonDecode(response.body);
       if (data['IsSuccess'] == true && data['Postcodes'] != null && data['Postcodes'].isNotEmpty) {
-        return data['Postcodes'][0]['BuildingNumber'] ?? 'N/A';
+        return data['Postcodes'][0]['BuildingNumber'] ?? null;
       }
+      return null;
     }
-    return 'Not Found';
+    return null;
   }
 }

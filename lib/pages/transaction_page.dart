@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/misdelivery.dart';
+import '../models/masterdoor.dart';
+import '../models/return_mailbox.dart';
 import '../pages/transactions_edit_page/misdelivery_page.dart';
 import '../pages/transactions_edit_page/masterdoor_page.dart';
 import '../pages/transactions_edit_page/return_mailbox_page.dart';
-import '../../services/transaction.dart'; // Assume the correct service is used for data
+import '../services/transaction.dart'; // Assume the correct service is used for data
 
 class TransactionsPage extends StatefulWidget {
   @override
@@ -14,17 +16,28 @@ class _TransactionsPageState extends State<TransactionsPage> {
   String _searchQuery = '';
   bool isLoading = true;
   List<MisdeliveryTransaction> misdeliveries = [];
+  List<MasterdoorTransaction> masterdoors = [];
+  List<ReturnMailboxTransaction> returnMailboxes = [];
 
   @override
   void initState() {
     super.initState();
-    loadMisdeliveryData();
+    loadTransactionData();
   }
 
-  void loadMisdeliveryData() async {
-    final data = await TransactionService.fetchMisdeliveryTransactions(context); // Fetch data from the service
+  void loadTransactionData() async {
     setState(() {
-      misdeliveries = data;
+      isLoading = true;
+    });
+    
+    final misdeliveryData = await TransactionService.fetchMisdeliveryTransactions(context);
+    final masterdoorData = await TransactionService.fetchMasterdoorTransactions(context);
+    final returnMailboxData = await TransactionService.fetchReturnMailboxTransactions(context);
+    
+    setState(() {
+      misdeliveries = misdeliveryData;
+      masterdoors = masterdoorData;
+      returnMailboxes = returnMailboxData;
       isLoading = false;
     });
   }
@@ -57,76 +70,46 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   Widget _buildTabContent(String tabName) {
-    if (tabName == 'Misdelivery') {
-      if (isLoading) {
-        return Center(child: CircularProgressIndicator());
-      }
-
-    final filtered = misdeliveries
-        .where((tx) => tx.displayTitle.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList()
-        .reversed
-        .toList();
-
-
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                labelText: 'Search $tabName',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final tx = filtered[index];
-                return Card(
-                  margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  child: ListTile(
-                    leading: Icon(Icons.local_post_office, color: Colors.deepPurple),
-                    title: Text(tx.displayTitle),
-                    subtitle: Text('Block: ${tx.blockNumber} | ${tx.date.split("T")[0]}'),
-                    trailing: Text(tx.postalCode),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MisdeliveryPage(
-                          transaction: tx,
-                          onSave: (_) {},
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      );
+    if (isLoading) {
+      return Center(child: CircularProgressIndicator());
     }
 
-    // Placeholder for other tabs with dummy search (Masterdoor, Return Mailbox)
-    final dummyTransactions = [
-      {'title': '$tabName #1001', 'date': '2025-04-15', 'amount': '\$25.00'},
-      {'title': '$tabName #1002', 'date': '2025-04-14', 'amount': '\$45.00'},
-    ];
+    List<dynamic> transactions = [];
+    String titleProperty = '';
+    String subtitleProperty = '';
+    String trailingProperty = '';
+    IconData leadingIcon = Icons.receipt;
+    Color iconColor = Colors.deepPurple;
+    
+    if (tabName == 'Misdelivery') {
+      transactions = misdeliveries;
+      titleProperty = 'displayTitle';
+      subtitleProperty = 'date';
+      trailingProperty = 'postalCode';
+      leadingIcon = Icons.local_post_office;
+    } else if (tabName == 'Masterdoor') {
+      transactions = masterdoors;
+      titleProperty = 'getDisplayTitle';
+      subtitleProperty = 'date';
+      trailingProperty = 'postalCode';
+      leadingIcon = Icons.door_front_door;
+    } else if (tabName == 'Return Mailbox') {
+      transactions = returnMailboxes;
+      titleProperty = 'getDisplayTitle';
+      subtitleProperty = 'date';
+      trailingProperty = 'postalCode';
+      leadingIcon = Icons.mail_outline;
+    }
 
-    final filteredDummy = dummyTransactions.where((tx) {
-      return tx['title']!.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList();
+    final filtered = transactions.where((tx) {
+      String title = '';
+      if (titleProperty == 'displayTitle') {
+        title = tx.displayTitle;
+      } else if (titleProperty == 'getDisplayTitle') {
+        title = tx.getDisplayTitle();
+      }
+      return title.toLowerCase().contains(_searchQuery.toLowerCase());
+    }).toList().reversed.toList();
 
     return Column(
       children: [
@@ -149,17 +132,42 @@ class _TransactionsPageState extends State<TransactionsPage> {
         ),
         Expanded(
           child: ListView.builder(
-            itemCount: filteredDummy.length,
+            itemCount: filtered.length,
             itemBuilder: (context, index) {
-              final tx = filteredDummy[index];
+              final tx = filtered[index];
+              String title = '';
+              if (titleProperty == 'displayTitle') {
+                title = tx.displayTitle;
+              } else if (titleProperty == 'getDisplayTitle') {
+                title = tx.getDisplayTitle();
+              }
+              
+              // Format date and time
+              String dateTime = '';
+              if (subtitleProperty == 'date') {
+                final dateParts = tx.date.split("T");
+                if (dateParts.length > 1) {
+                  final date = dateParts[0];
+                  final time = dateParts[1].substring(0, 5); // Get HH:MM
+                  dateTime = '$date $time';
+                } else {
+                  dateTime = tx.date;
+                }
+              }
+              
+              String trailing = '';
+              if (trailingProperty == 'postalCode') {
+                trailing = tx.postalCode;
+              }
+              
               return Card(
                 margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 child: ListTile(
-                  leading: Icon(Icons.receipt, color: Colors.deepPurple),
-                  title: Text(tx['title']!),
-                  subtitle: Text(tx['date']!),
-                  trailing: Text(tx['amount']!, style: TextStyle(fontWeight: FontWeight.bold)),
-                  onTap: () => _editTransaction(tx, index),
+                  leading: Icon(leadingIcon, color: iconColor),
+                  title: Text(title),
+                  subtitle: Text(dateTime),
+                  trailing: Text(trailing),
+                  onTap: () => _editTransaction(tx, tabName),
                 ),
               );
             },
@@ -169,31 +177,24 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 
-  void _editTransaction(Map<String, String> tx, int index) {
-    final title = tx['title']!;
+  void _editTransaction(dynamic tx, String tabName) {
     Widget destinationPage;
 
-    if (title.toLowerCase().startsWith('misdelivery')) {
+    if (tabName == 'Misdelivery') {
       destinationPage = MisdeliveryPage(
-        transaction: MisdeliveryTransaction(
-          mainDraftId: int.parse(tx['id'] ?? '0'),
-          blockNumber: tx['blockNumber'] ?? '',
-          postalCode: tx['postalCode'] ?? '',
-          date: tx['date'] ?? '',
-          misdeliveries: [], // Empty list for dummy data
-        ),
+        transaction: tx,
         onSave: (_) {},
       );
-    } else if (title.toLowerCase().startsWith('masterdoor')) {
+    } else if (tabName == 'Masterdoor') {
       destinationPage = MasterDoorPage(
-        postalCode: title,
-        buildingNumber: '',
+        postalCode: tx.postalCode,
+        buildingNumber: tx.buildingNumber,
         onSave: (_) {},
       );
-    } else if (title.toLowerCase().startsWith('return mailbox')) {
+    } else if (tabName == 'Return Mailbox') {
       destinationPage = ReturnMailboxChecklist(
-        postalCode: title,
-        buildingNumber: '',
+        postalCode: tx.postalCode,
+        buildingNumber: tx.buildingNumber,
         onSave: (_) {},
       );
     } else {
