@@ -12,59 +12,101 @@ class TransactionsPage extends StatefulWidget {
   _TransactionsPageState createState() => _TransactionsPageState();
 }
 
-class _TransactionsPageState extends State<TransactionsPage> {
+class _TransactionsPageState extends State<TransactionsPage> with SingleTickerProviderStateMixin {
   String _searchQuery = '';
   bool isLoading = true;
   List<MisdeliveryTransaction> misdeliveries = [];
   List<MasterdoorTransaction> masterdoors = [];
   List<ReturnMailboxTransaction> returnMailboxes = [];
+  String _selectedTab = 'Misdelivery';
+  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
-    loadTransactionData();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController!.addListener(() {
+      if (mounted) {
+        setState(() {
+          switch (_tabController!.index) {
+            case 0:
+              _selectedTab = 'Misdelivery';
+              break;
+            case 1:
+              _selectedTab = 'Masterdoor';
+              break;
+            case 2:
+              _selectedTab = 'Return Mailbox';
+              break;
+          }
+        });
+      }
+    });
+    _loadTransactions();
   }
 
-  void loadTransactionData() async {
+  @override
+  void dispose() {
+    _tabController?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadTransactions() async {
     setState(() {
       isLoading = true;
     });
-    
-    final misdeliveryData = await TransactionService.fetchMisdeliveryTransactions(context);
-    final masterdoorData = await TransactionService.fetchMasterdoorTransactions(context);
-    final returnMailboxData = await TransactionService.fetchReturnMailboxTransactions(context);
-    
-    setState(() {
-      misdeliveries = misdeliveryData;
-      masterdoors = masterdoorData;
-      returnMailboxes = returnMailboxData;
-      isLoading = false;
-    });
+
+    try {
+      final misdeliveryData = await TransactionService.fetchMisdeliveryTransactions(context);
+      final masterdoorData = await TransactionService.fetchMasterdoorTransactions(context);
+      final returnMailboxData = await TransactionService.fetchReturnMailboxTransactions(context);
+
+      setState(() {
+        misdeliveries = misdeliveryData;
+        masterdoors = masterdoorData;
+        returnMailboxes = returnMailboxData;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading transactions: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('Transactions'),
-          bottom: TabBar(
-            indicatorColor: Colors.white,
-            tabs: [
-              Tab(text: 'Misdelivery'),
-              Tab(text: 'Masterdoor'),
-              Tab(text: 'Return Mailbox'),
-            ],
-          ),
+    if (_tabController == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
         ),
-        body: TabBarView(
-          children: [
-            _buildTabContent('Misdelivery'),
-            _buildTabContent('Masterdoor'),
-            _buildTabContent('Return Mailbox'),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Transactions'),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          tabs: [
+            Tab(text: 'Misdelivery'),
+            Tab(text: 'Masterdoor'),
+            Tab(text: 'Return Mailbox'),
           ],
         ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildTabContent('Misdelivery'),
+          _buildTabContent('Masterdoor'),
+          _buildTabContent('Return Mailbox'),
+        ],
       ),
     );
   }
@@ -89,7 +131,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
       leadingIcon = Icons.local_post_office;
     } else if (tabName == 'Masterdoor') {
       transactions = masterdoors;
-      titleProperty = 'getDisplayTitle';
+      titleProperty = 'displayTitle';
       subtitleProperty = 'date';
       trailingProperty = 'postalCode';
       leadingIcon = Icons.door_front_door;
@@ -167,7 +209,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   title: Text(title),
                   subtitle: Text(dateTime),
                   trailing: Text(trailing),
-                  onTap: () => _editTransaction(tx, tabName),
+                  onTap: () => _editTransaction(tx),
                 ),
               );
             },
@@ -177,33 +219,45 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 
-  void _editTransaction(dynamic tx, String tabName) {
+  void _editTransaction(dynamic tx) {
     Widget destinationPage;
-
-    if (tabName == 'Misdelivery') {
-      destinationPage = MisdeliveryPage(
-        transaction: tx,
-        onSave: (_) {},
-      );
-    } else if (tabName == 'Masterdoor') {
-      destinationPage = MasterDoorPage(
-        postalCode: tx.postalCode,
-        buildingNumber: tx.buildingNumber,
-        onSave: (_) {},
-      );
-    } else if (tabName == 'Return Mailbox') {
-      destinationPage = ReturnMailboxChecklist(
-        postalCode: tx.postalCode,
-        buildingNumber: tx.buildingNumber,
-        onSave: (_) {},
-      );
-    } else {
-      return;
+    switch (_selectedTab) {
+      case 'Misdelivery':
+        destinationPage = MisdeliveryPage(
+          transaction: tx,
+          onSave: (bool success) {
+            if (success) {
+              _loadTransactions();
+            }
+          },
+        );
+        break;
+      case 'Masterdoor':
+        destinationPage = MasterDoorPage(
+          transaction: tx,
+          onSave: (bool success) {
+            if (success) {
+              _loadTransactions();
+            }
+          },
+        );
+        break;
+      case 'Return Mailbox':
+        destinationPage = ReturnMailboxChecklist(
+          transaction: tx,
+          onSave: (bool success) {
+            if (success) {
+              _loadTransactions();
+            }
+          },
+        );
+        break;
+      default:
+        return;
     }
-
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => destinationPage),
+      MaterialPageRoute(builder: (context) => destinationPage),
     );
   }
 }

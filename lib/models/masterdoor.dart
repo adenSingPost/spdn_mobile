@@ -1,50 +1,49 @@
+import 'dart:convert';
+
 class MasterdoorTransaction {
   final int id;
   final int checklistOption;
-  final String observation;
+  final String? observation;
   final List<String> imageList;
-  final int mainDraftId;
+  final String mainDraftId;
   final String createdAt;
   final String updatedAt;
-  final MainDraft? mainDraft;
+  final MainDraft mainDraft;
 
   MasterdoorTransaction({
     required this.id,
     required this.checklistOption,
-    required this.observation,
+    this.observation,
     required this.imageList,
     required this.mainDraftId,
     required this.createdAt,
     required this.updatedAt,
-    this.mainDraft,
+    required this.mainDraft,
   });
 
+  String get displayTitle => '${mainDraft.blockNumber} - ${mainDraft.postalCode}';
+
   factory MasterdoorTransaction.fromJson(Map<String, dynamic> json) {
+    // Parse imageList from string to List<String>
+    List<String> imageList = [];
+    if (json['imageList'] != null && json['imageList'].toString().isNotEmpty) {
+      imageList = json['imageList'].toString().split(',');
+    }
+
     return MasterdoorTransaction(
-      id: json['id'] ?? 0,
-      checklistOption: json['checklist_option'] ?? 0,
-      observation: json['observation'] ?? '',
-      imageList: json['imageList'] != null && json['imageList'].toString().isNotEmpty
-          ? json['imageList'].toString().split(',')
-          : [],
-      mainDraftId: json['main_draft_id'] ?? 0,
-      createdAt: json['createdAt'] ?? '',
-      updatedAt: json['updatedAt'] ?? '',
-      mainDraft: json['MainDraft'] != null 
-          ? MainDraft.fromJson(json['MainDraft']) 
-          : null,
+      id: json['id'],
+      checklistOption: json['checklist_option'],
+      observation: json['observation'],
+      imageList: imageList,
+      mainDraftId: json['main_draft_id'].toString(),
+      createdAt: json['createdAt'],
+      updatedAt: json['updatedAt'],
+      mainDraft: MainDraft.fromJson(json['MainDraft']),
     );
   }
 
-  String getDisplayTitle() {
-    if (mainDraft != null) {
-      return '${mainDraft!.blockNumber} - ${mainDraft!.postalCode}';
-    }
-    return 'Masterdoor #$id';
-  }
-
-  String get postalCode => mainDraft?.postalCode.toString() ?? '';
-  String get buildingNumber => mainDraft?.blockNumber ?? '';
+  String get postalCode => mainDraft.postalCode.toString();
+  String get buildingNumber => mainDraft.blockNumber;
   String get date => createdAt;
 }
 
@@ -69,13 +68,13 @@ class MainDraft {
 
   factory MainDraft.fromJson(Map<String, dynamic> json) {
     return MainDraft(
-      id: json['id'] ?? 0,
-      userId: json['user_id'] ?? 0,
-      postalCode: json['postal_code'] ?? 0,
-      blockNumber: json['block_number'] ?? '',
-      nest: json['nest'] ?? 0,
-      createdAt: json['createdAt'] ?? '',
-      updatedAt: json['updatedAt'] ?? '',
+      id: json['id'],
+      userId: json['user_id'],
+      postalCode: json['postal_code'],
+      blockNumber: json['block_number'],
+      nest: json['nest'],
+      createdAt: json['createdAt'],
+      updatedAt: json['updatedAt'],
     );
   }
 } 

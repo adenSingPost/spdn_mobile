@@ -67,8 +67,6 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
     for (var row in _inputs) {
       _initializeRowControllers(row);
     }
-    
-    _loadDraft();
   }
 
   /// Create text controllers for each row based on the mode.
@@ -134,85 +132,6 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
     }
   }
 
-  Future<void> _saveDraft() async {
-    _updateRowDataFromControllers();
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    // Remove controllers before saving because they cannot be encoded.
-    List<Map<String, dynamic>> dataToSave = _inputs.map((row) {
-      Map<String, dynamic> copy = Map<String, dynamic>.from(row);
-      copy.remove('foundAtControllers');
-      copy.remove('meantForControllers');
-      return copy;
-    }).toList();
-
-    // Create a Map to store both the draft and checkbox state
-    Map<String, dynamic> data = {
-      'draft': dataToSave,
-      'noMisdeliveryFound': _noMisdeliveryFound,
-    };
-
-    // Convert the Map to a JSON string
-    String jsonData = jsonEncode(data);
-
-    // Save the JSON string in SharedPreferences
-    await prefs.setString('misDeliveryDraft', jsonData);
-  }
-
-  Future<void> _loadDraft() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    
-    // Get the stored JSON string
-    String? jsonData = prefs.getString('misDeliveryDraft');
-
-    if (jsonData != null) {
-      // Decode the JSON string to a Map
-      Map<String, dynamic> data = jsonDecode(jsonData);
-
-      // Load the checkbox state
-      bool savedCheckbox = data['noMisdeliveryFound'] ?? false;
-      _noMisdeliveryFound = savedCheckbox;
-
-      // Load the draft data
-      List<dynamic> loaded = data['draft'];
-      
-      // Create a map of existing IDs from the transaction
-      Map<int, Map<String, dynamic>> existingData = {};
-      for (var m in widget.transaction.misdeliveries) {
-        existingData[m.id] = {
-          'id': m.id,
-          'isPostalCode': m.isPostalCode,
-          'foundAt': m.foundAt,
-          'meantFor': m.meantFor,
-        };
-      }
-      
-      // Merge loaded data with existing IDs
-      _inputs = loaded.asMap().entries.map((entry) {
-        int index = entry.key;
-        Map<String, dynamic> loadedData = entry.value as Map<String, dynamic>;
-        
-        // Get the corresponding misdelivery from the transaction
-        if (index < widget.transaction.misdeliveries.length) {
-          var misdelivery = widget.transaction.misdeliveries[index];
-          loadedData['id'] = misdelivery.id; // Preserve the original ID
-        }
-        
-        return loadedData;
-      }).toList();
-
-      // Initialize controllers for the loaded rows
-      for (var row in _inputs) {
-        _initializeRowControllers(row);
-      }
-
-      setState(() {});
-    } else {
-      // Handle case where no data is found
-      print('No saved data found');
-    }
-  }
-
   /// Check whether all rows are fully filled.
   bool _areAllRowsFilled() {
     for (var row in _inputs) {
@@ -268,16 +187,6 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
       return copy;
     }).toList();
 
-    // Debug log after preparing data
-    print('DEBUG: Data prepared for update:');
-    for (var data in dataToUpdate) {
-      print('DEBUG: Data after cleanup:');
-      print('DEBUG:   ID: ${data['id']} (${data['id']?.runtimeType})');
-      print('DEBUG:   IsPostalCode: ${data['isPostalCode']}');
-      print('DEBUG:   FoundAt: ${data['foundAt']}');
-      print('DEBUG:   MeantFor: ${data['meantFor']}');
-    }
-
     try {
       print('DEBUG: Sending data to UpdateTransactionService:');
       for (var data in dataToUpdate) {
@@ -291,7 +200,6 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
       );
 
       if (success) {
-        await _saveDraft(); // Still save to local storage
         setState(() => _formCompleted = true);
         widget.onSave(true);
         Navigator.pop(context);

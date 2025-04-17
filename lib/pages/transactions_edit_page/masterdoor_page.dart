@@ -3,16 +3,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
+import '../../models/masterdoor.dart';
 
 class MasterDoorPage extends StatefulWidget {
-  final String postalCode;
-  final String buildingNumber;
+  final MasterdoorTransaction transaction;
   final Function(bool) onSave;
 
   const MasterDoorPage({
     Key? key,
-    required this.postalCode,
-    required this.buildingNumber,
+    required this.transaction,
     required this.onSave,
   }) : super(key: key);
 
@@ -23,7 +22,6 @@ class MasterDoorPage extends StatefulWidget {
 class _MasterDoorPageState extends State<MasterDoorPage> {
   int? _masterDoorStatus;
   TextEditingController _observationsController = TextEditingController();
-  bool _masterDoorGoodCondition = false;
   List<String> _photoPaths = []; // Store multiple photo paths
   bool _formCompleted = false;
   final ImagePicker _picker = ImagePicker();
@@ -31,7 +29,9 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
   @override
   void initState() {
     super.initState();
-    _loadDraft();
+    // Initialize the form with transaction data
+    _masterDoorStatus = widget.transaction.checklistOption;
+    _observationsController.text = widget.transaction.observation ?? '';
   }
 
   @override
@@ -40,70 +40,21 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
     super.dispose();
   }
 
-  /// Load saved draft from local storage
-  Future<void> _loadDraft() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? savedData = prefs.getString('master_door_draft');
-
-    if (savedData != null) {
-      Map<String, dynamic> draft = json.decode(savedData);
-      setState(() {
-        _masterDoorStatus = draft['masterDoorStatus'];
-        _observationsController.text = draft['observations'] ?? '';
-        _photoPaths = List<String>.from(draft['photoPaths'] ?? []);
-        _masterDoorGoodCondition = draft['masterDoorGoodCondition'] ?? false;
-      });
-    }
-  }
-
-  /// Save draft to local storage
-  Future<void> _saveDraft() async {
-    if (_masterDoorStatus == null && !_masterDoorGoodCondition) {
+  /// Save the form and exit
+  void _saveForm() async {
+    if (_masterDoorStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            "Please select either a Masterdoor issue or check 'Masterdoor is in Good Condition' before saving.",
-          ),
+          content: Text("Please select a Masterdoor status before saving."),
         ),
       );
       return;
     }
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    Map<String, dynamic> draftData = {
-      'postalCode': widget.postalCode,
-      'buildingNumber': widget.buildingNumber,
-      'masterDoorStatus': _masterDoorStatus,
-      'observations': _observationsController.text,
-      'photoPaths': _photoPaths, // Save multiple photos
-      'masterDoorGoodCondition': _masterDoorGoodCondition,
-    };
-
-    await prefs.setString('master_door_draft', json.encode(draftData));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Draft saved successfully!")),
-    );
+    setState(() => _formCompleted = true);
+    widget.onSave(true);
+    Navigator.pop(context);
   }
-
-  /// Save the form and exit
-void _saveForm() async {
-  // Check if Masterdoor status is selected or Masterdoor is in good condition is checked
-  // Also check if there are observations filled in (if not in good condition)
-  if ((_masterDoorStatus == null && !_masterDoorGoodCondition) && _observationsController.text.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Please select a Masterdoor issue, check 'Masterdoor is in Good Condition', or add an observation before saving."),
-      ),
-    );
-    return;
-  }
-
-  await _saveDraft();
-  setState(() => _formCompleted = true);
-  widget.onSave(true);
-  Navigator.pop(context);
-}
-
 
   /// Pick a photo from gallery or capture a new photo
   Future<void> _pickPhoto(ImageSource source) async {
@@ -133,54 +84,46 @@ void _saveForm() async {
   void _onRadioChanged(int? value) {
     setState(() {
       _masterDoorStatus = value;
-      if (value != null) {
-        _masterDoorGoodCondition = false; // Uncheck "Good Condition" when selecting a radio button
-      }
     });
   }
 
-  /// Handle "Masterdoor is in Good Condition" checkbox logic
-  void _onGoodConditionChanged(bool? value) {
-    setState(() {
-      _masterDoorGoodCondition = value ?? false;
-      if (_masterDoorGoodCondition) {
-        _masterDoorStatus = null; // Clear radio button selection when checking "Good Condition"
-      }
-    });
-  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Masterdoor Checklist")),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Display postal code & building number
+              Text(
+                "Postal Code: ${widget.transaction.postalCode}",
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                "Building Number: ${widget.transaction.buildingNumber}",
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(title: const Text("Masterdoor Checklist")),
-    body: SingleChildScrollView(  // Add this to make the content scrollable
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Display postal code & building number
-            Text(
-              "Postal Code: ${widget.postalCode}",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              "Building Number: ${widget.buildingNumber}",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
+              // Masterdoor Checklist
+              const Text(
+                "Masterdoor Checklist",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
 
-            // Masterdoor Checklist
-            const Text(
-              "Masterdoor Checklist",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-
-            // Radio buttons for masterdoor status (disabled when master door is in good condition)
-            if (!_masterDoorGoodCondition)
+              // Radio buttons for masterdoor status
               Column(
                 children: [
+                  RadioListTile<int>(
+                    title: const Text("Masterdoor is in Good Condition"),
+                    value: 0,
+                    groupValue: _masterDoorStatus,
+                    onChanged: _onRadioChanged,
+                  ),
                   RadioListTile<int>(
                     title: const Text("Masterdoor Faulty, Latch Loose"),
                     value: 1,
@@ -195,80 +138,70 @@ Widget build(BuildContext context) {
                   ),
                 ],
               ),
-            const SizedBox(height: 10),
+              const SizedBox(height: 10),
 
-            // Observations text input (disabled when master door is in good condition)
-            TextField(
-              controller: _observationsController,
-              decoration: const InputDecoration(labelText: "Type other observations"),
-              enabled: !_masterDoorGoodCondition, // Disable if door is good
-            ),
-            const SizedBox(height: 10),
-
-            // Upload or Capture Photo section (disabled when master door is in good condition)
-            const Text(
-              "Upload Photos (Max 5)",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: _masterDoorGoodCondition ? null : () => _pickPhoto(ImageSource.camera),
-                  child: const Text("Take Photo"),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _masterDoorGoodCondition ? null : () => _pickPhoto(ImageSource.gallery),
-                  child: const Text("Upload Photo"),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // Display thumbnails of uploaded photos
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _photoPaths.map((path) {
-                int index = _photoPaths.indexOf(path);
-                return Stack(
-                  alignment: Alignment.topRight,
-                  children: [
-                    Image.file(File(path), width: 70, height: 70, fit: BoxFit.cover),
-                    GestureDetector(
-                      onTap: () => _removePhoto(index),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                        child: const Icon(Icons.close, size: 16, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-
-            // Checkbox for "Masterdoor is in Good Condition"
-            CheckboxListTile(
-              title: const Text("Masterdoor is in Good Condition"),
-              value: _masterDoorGoodCondition,
-              onChanged: _onGoodConditionChanged,
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            const SizedBox(height: 20),
-
-            // Save as Draft button
-            Center(
-              child: ElevatedButton(
-                onPressed: _saveForm,
-                child: const Text("update"),
+              // Observations text input
+              TextField(
+                controller: _observationsController,
+                decoration: const InputDecoration(labelText: "Type other observations"),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+
+              // Upload or Capture Photo section
+              const Text(
+                "Upload Photos (Max 5)",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () => _pickPhoto(ImageSource.camera),
+                    child: const Text("Take Photo"),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () => _pickPhoto(ImageSource.gallery),
+                    child: const Text("Upload Photo"),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              // Display thumbnails of uploaded photos
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _photoPaths.map((path) {
+                  int index = _photoPaths.indexOf(path);
+                  return Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Image.file(File(path), width: 70, height: 70, fit: BoxFit.cover),
+                      GestureDetector(
+                        onTap: () => _removePhoto(index),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                          child: const Icon(Icons.close, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Save button
+              Center(
+                child: ElevatedButton(
+                  onPressed: _saveForm,
+                  child: const Text("update"),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
