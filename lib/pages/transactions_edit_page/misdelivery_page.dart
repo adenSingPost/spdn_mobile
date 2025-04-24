@@ -187,6 +187,36 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
       return copy;
     }).toList();
 
+    // Show confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Update'),
+          content: const Text('Are you sure you want to update this misdelivery record?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: const Text('Update'),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user cancelled, return
+    if (confirmed != true) {
+      return;
+    }
+
     try {
       print('DEBUG: Sending data to UpdateTransactionService:');
       for (var data in dataToUpdate) {

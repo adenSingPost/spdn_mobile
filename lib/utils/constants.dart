@@ -1,3 +1,2 @@
 class Constants {
-static const String backendUrl = 'https://ef77-128-106-187-91.ngrok-free.app'; // Use your ngrok URL
-}
+static const String backendUrl = 'http://uat.aksmobile.singpost.com/miniapp/spdn-qc-api';}

@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../../models/return_mailbox.dart';
+import '../../services/update_transaction.dart';
 
 class ReturnMailboxChecklist extends StatefulWidget {
   final ReturnMailboxTransaction transaction;
@@ -30,8 +31,19 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
   void initState() {
     super.initState();
     // Initialize the form with transaction data
+    print('ReturnMailboxChecklist - Transaction Details:');
+    print('  ID: ${widget.transaction.id}');
+    print('  Checklist Option: ${widget.transaction.checklistOption}');
+    print('  Observation: ${widget.transaction.observation}');
+    print('  Postal Code: ${widget.transaction.postalCode}');
+    print('  Building Number: ${widget.transaction.buildingNumber}');
+    
+    // Ensure checklistOption is properly set
     _returnMailboxStatus = widget.transaction.checklistOption;
     _observationsController.text = widget.transaction.observation ?? '';
+    
+    // Debug log the initialized status
+    print('Initialized _returnMailboxStatus: $_returnMailboxStatus');
   }
 
   @override
@@ -52,9 +64,65 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
       return;
     }
 
-    setState(() => _formCompleted = true);
-    widget.onSave(true);
-    Navigator.pop(context);
+    // Show confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Update'),
+          content: const Text('Are you sure you want to update this return mailbox record?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: const Text('Update'),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user cancelled, return
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final success = await UpdateTransactionService.updateReturnMailbox(
+        context,
+        widget.transaction,
+        _returnMailboxStatus!,
+        _observationsController.text,
+        _photoPaths,
+      );
+
+      if (success) {
+        setState(() => _formCompleted = true);
+        widget.onSave(true);
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to update return mailbox record"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error updating return mailbox: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// Pick a photo from the gallery or camera
@@ -83,6 +151,7 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
 
   /// Handle radio button selection logic
   void _onRadioChanged(int? value) {
+    print('Radio button changed to: $value');
     setState(() {
       _returnMailboxStatus = value;
     });

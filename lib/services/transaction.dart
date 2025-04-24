@@ -97,13 +97,15 @@ class TransactionService {
     );
 
     if (response.statusCode == 200) {
-      print('API Response: ${response.body}');
+      print('DEBUG: Return Mailbox API Response:');
+      print('DEBUG: Raw response: ${response.body}');
       final List<dynamic> data = jsonDecode(response.body);
       final List<ReturnMailboxTransaction> fetched = [];
 
       for (var item in data) {
-        print('Processing return mailbox transaction:');
-        print('  Item: $item');
+        print('DEBUG: Processing return mailbox transaction:');
+        print('DEBUG:   Raw item: $item');
+        print('DEBUG:   Checklist option: ${item['checklist_option']}');
         fetched.add(ReturnMailboxTransaction.fromJson(item));
       }
 

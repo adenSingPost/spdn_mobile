@@ -4,6 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../../models/masterdoor.dart';
+import '../../services/update_transaction.dart';
+import 'package:http/http.dart' as http;
+import '../../utils/constants.dart';
+import '../../services/auth_service.dart';
 
 class MasterDoorPage extends StatefulWidget {
   final MasterdoorTransaction transaction;
@@ -51,9 +55,65 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
       return;
     }
 
-    setState(() => _formCompleted = true);
-    widget.onSave(true);
-    Navigator.pop(context);
+    // Show confirmation dialog
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Update'),
+          content: const Text('Are you sure you want to update this masterdoor record?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: const Text('Update'),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // If user cancelled, return
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final success = await UpdateTransactionService.updateMasterdoor(
+        context,
+        widget.transaction,
+        _masterDoorStatus!,
+        _observationsController.text,
+        _photoPaths,
+      );
+
+      if (success) {
+        setState(() => _formCompleted = true);
+        widget.onSave(true);
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to update masterdoor record"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error updating masterdoor: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   /// Pick a photo from gallery or capture a new photo

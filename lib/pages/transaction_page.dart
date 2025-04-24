@@ -63,8 +63,8 @@ class _TransactionsPageState extends State<TransactionsPage> with SingleTickerPr
 
       setState(() {
         misdeliveries = misdeliveryData;
-        masterdoors = masterdoorData;
-        returnMailboxes = returnMailboxData;
+        masterdoors = masterdoorData.reversed.toList();
+        returnMailboxes = returnMailboxData.reversed.toList();
         isLoading = false;
       });
     } catch (e) {

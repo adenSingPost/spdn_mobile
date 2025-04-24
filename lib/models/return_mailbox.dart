@@ -20,9 +20,10 @@ class ReturnMailboxTransaction {
   });
 
   factory ReturnMailboxTransaction.fromJson(Map<String, dynamic> json) {
+
     return ReturnMailboxTransaction(
       id: json['id'] ?? 0,
-      checklistOption: json['checklist_option'] ?? 0,
+      checklistOption: json['checklist'] ?? 0,
       observation: json['observation'] ?? '',
       imageList: json['imageList'] != null && json['imageList'].toString().isNotEmpty
           ? json['imageList'].toString().split(',')
