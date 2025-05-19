@@ -5,14 +5,44 @@ import '../../services/auth_service.dart'; // Import your AuthService
 import '../../utils/constants.dart'; // Import your Constants
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'dart:async';
 import 'package:intl/intl.dart'; // For date formatting
 import '../../pages/main_menu_page.dart';
+import 'package:image/image.dart' as img;
 
 class DraftService {
   final AuthService _authService;
 
   // Constructor to pass AuthService instance
   DraftService(this._authService);
+
+  static Future<File> compressImage(File file) async {
+    // Read the image file
+    final bytes = await file.readAsBytes();
+    final image = img.decodeImage(bytes);
+    
+    if (image == null) {
+      print('Failed to decode image');
+      return file;
+    }
+
+    // Resize the image to max 1200px width/height while maintaining aspect ratio
+    final resizedImage = img.copyResize(
+      image,
+      width: image.width > 1200 ? 1200 : image.width,
+      height: image.height > 1200 ? 1200 : image.height,
+    );
+
+    // Compress the image with quality 85%
+    final compressedBytes = img.encodeJpg(resizedImage, quality: 85);
+
+    // Create a temporary file for the compressed image
+    final tempDir = Directory.systemTemp;
+    final tempFile = File('${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg');
+    await tempFile.writeAsBytes(compressedBytes);
+
+    return tempFile;
+  }
 
   // Send all drafts with images to the backend
   Future<void> sendAllDraftsToBackend(BuildContext context, postalCode, int nest) async {
@@ -55,57 +85,93 @@ class DraftService {
 
     try {
       // Your backend API URL
-      var url = Uri.parse('${Constants.backendUrl}/protected/submitAllDrafts'); // Replace with your backend URL
+      var url = Uri.parse('${Constants.backendUrl}/protected/submitAllDrafts');
 
       // Prepare the API request to send data
       var request = http.MultipartRequest('POST', url)
-        ..fields['draftData'] = jsonEncode(combinedData)  // Add all drafts
-        ..fields['postalCode'] = postalCode  // Add postalCode field
-        ..fields['nest'] = nest.toString();  // Add the nest field
+        ..fields['draftData'] = jsonEncode(combinedData)
+        ..fields['postalCode'] = postalCode
+        ..fields['nest'] = nest.toString();
+
+      // Add headers
+      request.headers['Authorization'] = 'Bearer $validAccessToken';
+      request.headers['Connection'] = 'keep-alive';
+      request.headers['Keep-Alive'] = 'timeout=60, max=1000';
 
       // Add images as multipart files
       if (imagesData.isNotEmpty) {
+        // Compress all images in parallel first
+        Map<String, List<File>> compressedImagesData = {};
         for (var key in imagesData.keys) {
-          int i = 0;  // Initialize the index variable
+          compressedImagesData[key] = await Future.wait(
+            imagesData[key]!.map((file) => compressImage(file))
+          );
+        }
 
-          for (var imageFile in imagesData[key]!) {
-            i++;  // Increment the index
-
-            // Generate the new filename with the index included
-            String newFilename = generateNewFilename(key, postalCode, imageFile, i);
-
-            // Add each image file as a multipart file with the new filename
-            var multipartFile = await http.MultipartFile.fromPath('images[]', imageFile.path, filename: newFilename);
-            request.files.add(multipartFile);
+        // Add all compressed images to request
+        for (var key in compressedImagesData.keys) {
+          int i = 0;
+          for (var compressedFile in compressedImagesData[key]!) {
+            i++;
+            String newFilename = generateNewFilename(key, postalCode, compressedFile, i);
+            
+            request.files.add(
+              await http.MultipartFile.fromPath(
+                'images[]', 
+                compressedFile.path, 
+                filename: newFilename
+              )
+            );
           }
         }
       }
 
-      // Add Bearer Token to headers for authentication
-      request.headers['Authorization'] = 'Bearer $validAccessToken';
+      // Send request with timeout
+      var response = await request.send().timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          throw TimeoutException('Request timed out');
+        },
+      );
 
-      // Send the request
-      var response = await request.send();
+      // Read the response stream only once
+      final responseBody = await response.stream.bytesToString();
+      print('Response body: $responseBody'); // Debug log
 
       if (response.statusCode == 200) {
-        // Clear the drafts in SharedPreferences upon success
-        for (String key in draftKeys) {
-          await prefs.remove(key); // Remove draft data
+        final jsonResponse = json.decode(responseBody);
+        if (jsonResponse['success'] == true) {
+          // Clear the drafts in SharedPreferences upon success
+          for (String key in draftKeys) {
+            await prefs.remove(key);
+          }
+
+          print('All drafts and images successfully sent to the backend!');
+
+          // Navigate to MainMenuPage after clearing preferences
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => MainMenuPage()),
+          );
+          return;
+        } else {
+          print('Failed to send drafts: ${jsonResponse['message']}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to send drafts: ${jsonResponse['message']}')),
+          );
         }
-
-        // Show a success message (optional)
-        print('All drafts and images successfully sent to the backend!');
-
-        // Navigate to MainMenuPage after clearing preferences
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => MainMenuPage()),  // Navigate to MainMenuPage
-        );
       } else {
-        print('Failed to send drafts and images: ${response.statusCode}');
+        print('Failed to send drafts: Status code ${response.statusCode}');
+        print('Response body: $responseBody');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send drafts: Status code ${response.statusCode}')),
+        );
       }
-    } catch (error) {
-      print('Failed to call API: $error');
+    } catch (e) {
+      print('Error sending drafts: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error sending drafts: $e')),
+      );
     }
   }
 
