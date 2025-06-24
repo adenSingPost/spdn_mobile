@@ -2,14 +2,12 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:jwt_decoder/jwt_decoder.dart';  // For decoding JWT token
-import 'package:google_sign_in/google_sign_in.dart'; // Import the GoogleSignIn package
 import '../utils/constants.dart';
 import 'package:flutter/material.dart'; // For Navigator
 import '../pages/google_sign_in_page.dart';
 
 class AuthService {
   final FlutterSecureStorage _storage = FlutterSecureStorage();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email']); // Create an instance of GoogleSignIn
 
   // Load stored tokens from secure storage
   Future<Map<String, String?>> loadTokens() async {
@@ -22,12 +20,6 @@ class AuthService {
   // Function to check if access token is valid, refresh if expired
   Future<String?> getValidAccessToken(BuildContext context) async {
     String? storedAccessToken = await _storage.read(key: 'accessToken');
-    
-    if (storedAccessToken != null) {
-      print('Token expired: ${JwtDecoder.isExpired(storedAccessToken)}');
-    } else {
-      print('No access token found');
-    }
 
     if (storedAccessToken != null && !JwtDecoder.isExpired(storedAccessToken)) {
       return storedAccessToken; // Token is still valid
@@ -36,7 +28,6 @@ class AuthService {
     // Access token is expired, attempt to refresh it
     String? storedRefreshToken = await _storage.read(key: 'refreshToken');
     if (storedRefreshToken == null) {
-      print('No refresh token found, user must log in again.');
       await _clearTokens();  // Clear both tokens
       _redirectToSignIn(context);  // Redirect to Google Sign-In page
       return null;
@@ -44,11 +35,13 @@ class AuthService {
   
     try {
       final response = await http.post(
-        Uri.parse('${Constants.backendUrl}/auth/refresh-token'),
+        Uri.parse('${Constants.middlewareUrl}/auth/refresh-token'),
         headers: {
-          'Content-Type': 'application/json', // Ensure JSON is sent
+          'Content-Type': 'application/json',
+          'X-App-ID': Constants.appId,
+          'X-API-Key': Constants.apiKey,
         },
-        body: jsonEncode({'refreshToken': storedRefreshToken}), // Convert to JSON
+        body: jsonEncode({'refreshToken': storedRefreshToken}),
       );
 
       if (response.statusCode == 200) {
@@ -62,19 +55,18 @@ class AuthService {
       } else {
         await _clearTokens();  // Clear both tokens
         _redirectToSignIn(context);  // Redirect to Google Sign-In page
-        print('Failed to refresh access token: ${response.body}');
         return null;
       }
     } catch (error) {
-      print('Error refreshing access token: $error');
       return null;
     }
   }
 
-  // Log out the user by deleting tokens and Google account information
+  // Log out the user by deleting tokens and user data
   Future<void> _clearTokens() async {
     await _storage.delete(key: 'accessToken');
     await _storage.delete(key: 'refreshToken');
+    await _storage.delete(key: 'user');
   }
 
   // Redirect to Google Sign-In page
@@ -85,19 +77,41 @@ class AuthService {
     );
   }
 
-  // Logout function to clear tokens, sign out of Google, and redirect to sign-in page
-Future<void> logout(BuildContext context, {bool timeout = false}) async {
-  await _clearTokens(); // Clear the tokens
+  // Logout function to clear tokens and redirect to sign-in page
+  Future<void> logout(BuildContext context, {bool timeout = false}) async {
+    try {
+      // Clear all stored data
+      await _storage.delete(key: 'accessToken');
+      await _storage.delete(key: 'refreshToken');
+      await _storage.delete(key: 'user');
 
-  if (timeout) {
-    // Wait for 3 seconds before signing out
-    await Future.delayed(Duration(milliseconds: 3000));
+      // Verify tokens are actually cleared
+      String? accessToken = await _storage.read(key: 'accessToken');
+      String? refreshToken = await _storage.read(key: 'refreshToken');
+      String? userData = await _storage.read(key: 'user');
+      
+      if (timeout) {
+        await Future.delayed(Duration(milliseconds: 3000));
+      }
+
+      // Force a complete app restart by navigating to sign-in with replacement
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => GoogleSignInPage()),
+          (route) => false, // Remove all previous routes
+        );
+      }
+      
+    } catch (error) {
+      // Even if there's an error, try to redirect to sign-in
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => GoogleSignInPage()),
+          (route) => false, // Remove all previous routes
+        );
+      }
+    }
   }
-
-  // Sign out of Google to clear cached account info
-  await _googleSignIn.signOut();
-  print('User signed out from Google');
-
-  _redirectToSignIn(context); // Redirect to the sign-in page
-}
 }
