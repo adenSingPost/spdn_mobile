@@ -31,6 +31,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="spdn" android:host="auth" />
             </intent-filter>
+            
+            <!-- Deep linking for HTTP localhost callback -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="localhost" android:port="49514" />
+            </intent-filter>
         </activity>
 
         <!-- Google Sign-In configuration -->

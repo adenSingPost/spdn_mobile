@@ -5,6 +5,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';  // For decoding JWT token
 import '../utils/constants.dart';
 import 'package:flutter/material.dart'; // For Navigator
 import '../pages/google_sign_in_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AuthService {
   final FlutterSecureStorage _storage = FlutterSecureStorage();
@@ -90,6 +91,9 @@ class AuthService {
       String? refreshToken = await _storage.read(key: 'refreshToken');
       String? userData = await _storage.read(key: 'user');
       
+      // Clear query parameters if they exist
+      await _clearQueryParams();
+      
       if (timeout) {
         await Future.delayed(Duration(milliseconds: 3000));
       }
@@ -112,6 +116,23 @@ class AuthService {
           (route) => false, // Remove all previous routes
         );
       }
+    }
+  }
+
+  // Method to clear query parameters by redirecting to clean URL
+  Future<void> _clearQueryParams() async {
+    try {
+      // Redirect to a clean URL without query parameters
+      final cleanUrl = Constants.cleanUrl;
+      
+      if (await canLaunchUrl(Uri.parse(cleanUrl))) {
+        await launchUrl(
+          Uri.parse(cleanUrl),
+          mode: LaunchMode.externalApplication,
+        );
+      }
+    } catch (e) {
+      print('Error clearing query params: $e');
     }
   }
 }

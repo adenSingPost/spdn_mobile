@@ -34,16 +34,11 @@ class GoogleSignInPage extends StatefulWidget {
 }
 
 class _GoogleSignInPageState extends State<GoogleSignInPage> {
-  String? _errorMessage;
   final _authService = AuthService();
   final _storage = FlutterSecureStorage();
   late AppLinks _appLinks;
   StreamSubscription? _linkSubscription;
   
-  // Add controllers for email/password fields
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _isLoading = false;
   bool _hasCheckedLoginStatus = false;
 
   @override
@@ -56,14 +51,25 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
   @override
   void dispose() {
     _linkSubscription?.cancel();
-    _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _initDeepLinkListener() async {
     _appLinks = AppLinks();
+    
+    // Check for initial app launch URL
+    try {
+      final initialUri = await _appLinks.getInitialAppLink();
+      if (initialUri != null) {
+        print('Initial app link: $initialUri');
+        _handleGoogleCallback(initialUri);
+      }
+    } catch (e) {
+      print('Error getting initial app link: $e');
+    }
+    
     _linkSubscription = _appLinks.uriLinkStream.listen((Uri uri) {
+      print('Received deep link: $uri');
       _handleGoogleCallback(uri);
     }, onError: (err) {
       print('Error handling deep link: $err');
@@ -72,34 +78,52 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
 
   Future<void> _handleGoogleCallback(Uri uri) async {
     try {
+      print('Handling callback for URI: $uri');
+      print('Scheme: ${uri.scheme}, Host: ${uri.host}, Path: ${uri.path}');
+      print('Query params: ${uri.queryParameters}');
+      
       // Handle both localhost and custom scheme callbacks
       bool isCallback = false;
       
-      // Check for localhost callback
+      // Check for localhost callback (including root path)
       if (uri.scheme == 'http' && uri.host == 'localhost' && 
-          (uri.path == '/auth/callback' || uri.path == '/auth/google/callback')) {
+          (uri.path == '/' || uri.path == '/auth/callback' || uri.path == '/auth/google/callback')) {
         isCallback = true;
+        print('Matched localhost callback');
       }
       
-      // Check for custom scheme callback
+      // Check for custom scheme callback (spdn://auth/callback)
       if (uri.scheme == 'spdn' && uri.host == 'auth' && 
           (uri.path == '/callback' || uri.path == '/google/callback')) {
         isCallback = true;
+        print('Matched spdn callback');
       }
       
+      print('Is callback: $isCallback');
+      
       if (isCallback) {
+        final success = uri.queryParameters['success'];
         final accessToken = uri.queryParameters['accessToken'];
         final refreshToken = uri.queryParameters['refreshToken'];
         final userData = uri.queryParameters['user'];
+        final appId = uri.queryParameters['appId'];
 
-        if (accessToken != null && refreshToken != null) {
+        print('Success: $success, AccessToken: ${accessToken != null ? 'present' : 'missing'}, RefreshToken: ${refreshToken != null ? 'present' : 'missing'}');
+
+        // Check if authentication was successful
+        if (success == 'true' && accessToken != null && refreshToken != null) {
+          print('Authentication successful, storing tokens...');
           // Store tokens securely
           await _storage.write(key: 'accessToken', value: accessToken);
           await _storage.write(key: 'refreshToken', value: refreshToken);
           if (userData != null) {
             await _storage.write(key: 'user', value: userData);
           }
+          if (appId != null) {
+            await _storage.write(key: 'appId', value: appId);
+          }
           
+          print('Tokens stored, navigating to main menu...');
           if (mounted) {
             // Navigate to main menu on success
             Navigator.pushReplacement(
@@ -108,20 +132,15 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
             );
           }
         } else {
-          setState(() {
-            _errorMessage = 'Authentication failed: Missing tokens';
-          });
+          print('Authentication failed: success=$success, accessToken=${accessToken != null}, refreshToken=${refreshToken != null}');
         }
       } else if (uri.path == '/auth/error' || (uri.scheme == 'spdn' && uri.path == '/auth/error')) {
         final errorMessage = uri.queryParameters['message'] ?? 'Authentication failed';
-        setState(() {
-          _errorMessage = errorMessage;
-        });
+      } else {
+        print('URI did not match any callback pattern');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Error handling authentication: $e';
-      });
+      print('Error in callback handler: $e');
     }
   }
 
@@ -157,7 +176,6 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
     await _storage.delete(key: 'refreshToken');
     await _storage.delete(key: 'user');
     _hasCheckedLoginStatus = false;
-    _errorMessage = '';
   }
 
   // Method to completely restart the app
@@ -172,18 +190,19 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
     );
   }
 
-  Future<void> _signInWithGoogle() async {
+  Future<void> _signInWithWeb() async {
     try {
-      // Create state object with just appId
+      // Create state object with appId and callback URL
       final state = {
-        'appId': Constants.appId
+        'appId': Constants.appId,
+        'callbackUrl': Constants.webCallbackUrl
       };
       
       // Encode state as base64 to ensure it's URL safe
       final encodedState = base64Encode(utf8.encode(json.encode(state)));
       
-      // Launch the Google OAuth URL with app_id and state parameters
-      final url = '${Constants.googleAuthUrl}?app_id=${Constants.appId}&redirect_uri=${Uri.encodeComponent(Constants.googleCallbackUrl)}&state=$encodedState';
+      // Launch the web auth URL with state parameter
+      final url = '${Constants.webAuthUrl}?appid=${Constants.appId}&state=$encodedState';
       
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(
@@ -191,97 +210,8 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
           mode: LaunchMode.externalApplication,
         );
       } else {
-        setState(() {
-          _errorMessage = 'Could not launch Google sign in';
-        });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Error during Google sign-in: $e';
-      });
-    }
-  }
-
-  Future<void> _signInWithEmail() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
-      if (email.isEmpty || password.isEmpty) {
-        setState(() {
-          _errorMessage = 'Please fill in all fields';
-        });
-        return;
-      }
-
-      // Encrypt password with shared secret
-      final encryptedPassword = _encryptWithAES(password);
-
-      final response = await http.post(
-        Uri.parse('${Constants.middlewareUrl}/auth/login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-App-ID': Constants.appId,
-          'X-API-Key': Constants.apiKey,
-        },
-        body: json.encode({
-          'email': email,
-          'encryptedPassword': encryptedPassword,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        // Store tokens securely
-        await _storage.write(key: 'accessToken', value: data['accessToken']);
-        await _storage.write(key: 'refreshToken', value: data['refreshToken']);
-        await _storage.write(key: 'user', value: json.encode(data['user']));
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => MainMenuPage()),
-          );
-        }
-      } else {
-        final errorData = json.decode(response.body);
-        setState(() {
-          _errorMessage = errorData['error'] ?? 'Sign in failed';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Error during sign in: $e';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  String _encryptWithAES(String password) {
-    try {
-      // Use a simple XOR encryption with a fixed key
-      // This is just for demonstration - in production use proper AES
-      final passwordBytes = utf8.encode(password);
-      final keyBytes = utf8.encode(Constants.secretKey);
-      
-      final encryptedBytes = List<int>.generate(
-        passwordBytes.length,
-        (i) => passwordBytes[i] ^ keyBytes[i % keyBytes.length],
-      );
-      
-      return base64Encode(encryptedBytes);
-    } catch (e) {
-      print('Error in AES encryption: $e');
-      return base64Encode(utf8.encode(password));
     }
   }
 
@@ -300,108 +230,14 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(height: 20),
-              Text(
-                'Sign In',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 40),
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Theme.of(context).primaryColor),
-                  ),
-                ),
-              ),
-              SizedBox(height: 20),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Theme.of(context).primaryColor),
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {}, // Placeholder for forgot password
-                  child: Text('Forgot Password?'),
-                ),
-              ),
-              SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _isLoading ? null : _signInWithEmail,
-                child: _isLoading 
-                  ? SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text('Sign In'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-              SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'or continue with',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
-                  ),
-                  Expanded(child: Divider(color: Colors.grey.shade300)),
-                ],
-              ),
-              SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: _signInWithGoogle,
+                onPressed: _signInWithWeb,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      'G',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
-                    ),
+                    Icon(Icons.web, color: Colors.blue),
                     SizedBox(width: 12),
-                    Text('Sign in with Google'),
+                    Text('SingPost One Login'),
                   ],
                 ),
                 style: ElevatedButton.styleFrom(
@@ -415,50 +251,6 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
                   ),
                 ),
               ),
-              SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Don't have an account?",
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => SignUpPage()),
-                      );
-                    },
-                    child: Text(
-                      'Sign up',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-              if (_errorMessage != null) ...[
-                SizedBox(height: 16),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
