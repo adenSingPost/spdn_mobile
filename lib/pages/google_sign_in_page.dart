@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_links/app_links.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:crypto/crypto.dart';
 import '../utils/constants.dart';
 import './main_menu_page.dart';
 import '../services/auth_service.dart';
@@ -76,6 +78,68 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
     });
   }
 
+  // Method to validate JWT token
+  bool _validateJwtToken(String token) {
+    try {
+      // Split the JWT token into parts
+      List<String> parts = token.split('.');
+      if (parts.length != 3) {
+        print('Invalid JWT format: must have 3 parts');
+        return false;
+      }
+      
+      String header = parts[0];
+      String payload = parts[1];
+      String signature = parts[2];
+      
+      // Decode the payload to check claims
+      String decodedPayload = utf8.decode(base64Url.decode(base64Url.normalize(payload)));
+      Map<String, dynamic> claims = json.decode(decodedPayload);
+      
+      // Check if token is expired
+      if (claims.containsKey('exp')) {
+        int exp = claims['exp'];
+        int now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        if (now >= exp) {
+          print('JWT token is expired');
+          return false;
+        }
+      }
+      
+      // Check if token has required claims
+      if (!claims.containsKey('email') || !claims.containsKey('iat') || !claims.containsKey('exp')) {
+        print('JWT token missing required claims');
+        return false;
+      }
+      
+      // Verify JWT signature
+      String dataToSign = '$header.$payload';
+      String expectedSignature = _generateHmacSignature(dataToSign, Constants.jwtSecret);
+      
+      if (signature != expectedSignature) {
+        print('JWT signature verification failed');
+        print('Expected: $expectedSignature');
+        print('Received: $signature');
+        return false;
+      }
+      
+      print('JWT token is valid and signature verified');
+      return true;
+    } catch (e) {
+      print('JWT token validation failed: $e');
+      return false;
+    }
+  }
+  
+  // Method to generate HMAC-SHA256 signature
+  String _generateHmacSignature(String data, String secret) {
+    var key = utf8.encode(secret);
+    var bytes = utf8.encode(data);
+    var hmac = Hmac(sha256, key);
+    var digest = hmac.convert(bytes);
+    return base64Url.encode(digest.bytes).replaceAll('=', '');
+  }
+
   Future<void> _handleGoogleCallback(Uri uri) async {
     try {
       print('Handling callback for URI: $uri');
@@ -112,7 +176,14 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
 
         // Check if authentication was successful
         if (success == 'true' && accessToken != null && refreshToken != null) {
-          print('Authentication successful, storing tokens...');
+          print('Authentication successful, validating tokens...');
+          
+          // Validate the access token first
+          if (!_validateJwtToken(accessToken)) {
+            print('Access token validation failed');
+            return;
+          }
+          
           // Store tokens securely
           await _storage.write(key: 'accessToken', value: accessToken);
           await _storage.write(key: 'refreshToken', value: refreshToken);
@@ -132,7 +203,7 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
             );
           }
         } else {
-          print('Authentication failed: success=$success, accessToken=${accessToken != null}, refreshToken=${refreshToken != null}');
+          print('Authentication failed: success=$success, accessToken=${accessToken}, refreshToken=${refreshToken}');
         }
       } else if (uri.path == '/auth/error' || (uri.scheme == 'spdn' && uri.path == '/auth/error')) {
         final errorMessage = uri.queryParameters['message'] ?? 'Authentication failed';
