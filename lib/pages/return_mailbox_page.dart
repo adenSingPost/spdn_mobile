@@ -67,6 +67,17 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
       return;
     }
 
+    // Check if at least 1 photo is uploaded
+    if (_photoPaths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please upload at least 1 photo before saving."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> draftData = {
       'postalCode': widget.postalCode,
@@ -89,6 +100,17 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
           content: Text(
             "Please select a return mailbox status before saving.",
           ),
+        ),
+      );
+      return;
+    }
+
+    // Check if at least 1 photo is uploaded
+    if (_photoPaths.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please upload at least 1 photo before saving."),
+          backgroundColor: Colors.red,
         ),
       );
       return;
@@ -188,7 +210,7 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
 
             // Upload photo section
             const Text(
-              "Upload Photos (Max: 5)",
+              "Upload Photos (Max: 5) - At least 1 photo required",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Row(

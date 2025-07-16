@@ -68,6 +68,7 @@ class AuthService {
     await _storage.delete(key: 'accessToken');
     await _storage.delete(key: 'refreshToken');
     await _storage.delete(key: 'user');
+    await _storage.delete(key: 'appId');
   }
 
   // Redirect to Google Sign-In page
@@ -85,11 +86,18 @@ class AuthService {
       await _storage.delete(key: 'accessToken');
       await _storage.delete(key: 'refreshToken');
       await _storage.delete(key: 'user');
+      await _storage.delete(key: 'appId');
 
       // Verify tokens are actually cleared
       String? accessToken = await _storage.read(key: 'accessToken');
       String? refreshToken = await _storage.read(key: 'refreshToken');
       String? userData = await _storage.read(key: 'user');
+      String? appId = await _storage.read(key: 'appId');
+      
+      print('Logout verification - accessToken: ${accessToken != null ? 'present' : 'cleared'}');
+      print('Logout verification - refreshToken: ${refreshToken != null ? 'present' : 'cleared'}');
+      print('Logout verification - user: ${userData != null ? 'present' : 'cleared'}');
+      print('Logout verification - appId: ${appId != null ? 'present' : 'cleared'}');
       
       // Clear query parameters if they exist
       await _clearQueryParams();
@@ -102,17 +110,18 @@ class AuthService {
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => GoogleSignInPage()),
+          MaterialPageRoute(builder: (_) => GoogleSignInPage(isFromLogout: true)),
           (route) => false, // Remove all previous routes
         );
       }
       
     } catch (error) {
+      print('Error during logout: $error');
       // Even if there's an error, try to redirect to sign-in
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => GoogleSignInPage()),
+          MaterialPageRoute(builder: (_) => GoogleSignInPage(isFromLogout: true)),
           (route) => false, // Remove all previous routes
         );
       }
@@ -122,15 +131,12 @@ class AuthService {
   // Method to clear query parameters by redirecting to clean URL
   Future<void> _clearQueryParams() async {
     try {
-      // Redirect to a clean URL without query parameters
-      final cleanUrl = Constants.cleanUrl;
+      // For Flutter apps, we can't directly clear URL parameters
+      // But we can ensure the app starts fresh by forcing a restart
+      print('Clearing query parameters - forcing app restart');
       
-      if (await canLaunchUrl(Uri.parse(cleanUrl))) {
-        await launchUrl(
-          Uri.parse(cleanUrl),
-          mode: LaunchMode.externalApplication,
-        );
-      }
+      // The navigation to GoogleSignInPage with pushAndRemoveUntil 
+      // will ensure a clean state without query parameters
     } catch (e) {
       print('Error clearing query params: $e');
     }

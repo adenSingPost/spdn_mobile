@@ -31,6 +31,10 @@ class MyApp extends StatelessWidget {
 }
 
 class GoogleSignInPage extends StatefulWidget {
+  final bool isFromLogout;
+  
+  const GoogleSignInPage({Key? key, this.isFromLogout = false}) : super(key: key);
+  
   @override
   _GoogleSignInPageState createState() => _GoogleSignInPageState();
 }
@@ -42,12 +46,42 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
   StreamSubscription? _linkSubscription;
   
   bool _hasCheckedLoginStatus = false;
+  bool _ignoreDeepLinks = false; // Flag to ignore deep links after logout
+  String? _userName; // Add state for user name
 
   @override
   void initState() {
     super.initState();
+    
+    // Only reset deep link state if coming from logout
+    if (widget.isFromLogout) {
+      _resetDeepLinkState();
+    }
+    
     _checkLoggedInStatus();
     _initDeepLinkListener();
+  }
+
+  // Method to reset deep link state (called only after logout)
+  void _resetDeepLinkState() {
+    // Cancel any existing subscription
+    _linkSubscription?.cancel();
+    _linkSubscription = null;
+    
+    // Reset the flag to force re-check
+    _hasCheckedLoginStatus = false;
+    
+    // Set flag to ignore deep links after logout
+    _ignoreDeepLinks = true;
+    
+    // Reset the ignore flag after a delay to allow normal deep link processing
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _ignoreDeepLinks = false;
+        });
+      }
+    });
   }
 
   @override
@@ -59,20 +93,28 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
   Future<void> _initDeepLinkListener() async {
     _appLinks = AppLinks();
     
-    // Check for initial app launch URL
-    try {
-      final initialUri = await _appLinks.getInitialAppLink();
-      if (initialUri != null) {
-        print('Initial app link: $initialUri');
-        _handleGoogleCallback(initialUri);
+    // Check for initial app launch URL only if not ignoring deep links
+    if (!_ignoreDeepLinks) {
+      try {
+        final initialUri = await _appLinks.getInitialAppLink();
+        if (initialUri != null) {
+          print('Initial app link: $initialUri');
+          _handleGoogleCallback(initialUri);
+        }
+      } catch (e) {
+        print('Error getting initial app link: $e');
       }
-    } catch (e) {
-      print('Error getting initial app link: $e');
+    } else {
+      print('Ignoring initial deep link due to logout');
     }
     
     _linkSubscription = _appLinks.uriLinkStream.listen((Uri uri) {
-      print('Received deep link: $uri');
-      _handleGoogleCallback(uri);
+      if (!_ignoreDeepLinks) {
+        print('Received deep link: $uri');
+        _handleGoogleCallback(uri);
+      } else {
+        print('Ignoring deep link due to logout: $uri');
+      }
     }, onError: (err) {
       print('Error handling deep link: $err');
     });
@@ -225,11 +267,21 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
     String? userData = await _storage.read(key: 'user');
     
     if (accessToken != null && refreshToken != null) {
-      _hasCheckedLoginStatus = true;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => MainMenuPage()),
-      );
+      // Validate the access token before navigating
+      if (_validateJwtToken(accessToken)) {
+        _hasCheckedLoginStatus = true;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => MainMenuPage()),
+        );
+      } else {
+        // Token is invalid, clear it and stay on auth page
+        print('Stored token is invalid, clearing tokens');
+        await _storage.delete(key: 'accessToken');
+        await _storage.delete(key: 'refreshToken');
+        await _storage.delete(key: 'user');
+        _hasCheckedLoginStatus = true;
+      }
     } else {
       _hasCheckedLoginStatus = true;
     }
@@ -274,7 +326,7 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
       
       // Launch the web auth URL with state parameter
       final url = '${Constants.webAuthUrl}?appid=${Constants.appId}&state=$encodedState';
-      
+      print(url);
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(
           Uri.parse(url),

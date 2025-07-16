@@ -16,6 +16,7 @@ class MainMenuPage extends StatefulWidget {
 class _MainMenuPageState extends State<MainMenuPage> {
   final AuthService _authService = AuthService();
   String? _userEmail;
+  String? _userName; // Add state for user name
 
   @override
   void initState() {
@@ -26,15 +27,31 @@ class _MainMenuPageState extends State<MainMenuPage> {
   Future<void> _loadUserData() async {
     final storage = FlutterSecureStorage();
     final userData = await storage.read(key: 'user');
+    print('Loading user data: $userData');
+    
     if (userData != null) {
       try {
-        final user = json.decode(userData);
+        // Decode URL-encoded string first
+        final decodedUserData = Uri.decodeComponent(userData);
+        print('Decoded URL: $decodedUserData');
+        
+        final user = json.decode(decodedUserData);
+        print('Decoded user data: $user');
+        print('User name: ${user['name']}');
+        print('User email: ${user['email']}');
+        
         setState(() {
           _userEmail = user['email'];
+          _userName = user['name']; // Extract user name
         });
+        
+        print('State updated - userName: $_userName, userEmail: $_userEmail');
       } catch (e) {
+        print('Error decoding user data: $e');
         // Handle JSON decode error
       }
+    } else {
+      print('No user data found in storage');
     }
   }
 
@@ -59,21 +76,39 @@ class _MainMenuPageState extends State<MainMenuPage> {
       ),
       body: Column(
         children: [
-          // User email display
-          if (_userEmail != null) ...[
+          // User welcome display
+          if (_userName != null) ...[
             Container(
               width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              color: Colors.grey.shade100,
+              padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              color: Colors.blue.shade50,
               child: Row(
                 children: [
-                  Icon(Icons.email, color: Colors.grey.shade600, size: 16),
-                  SizedBox(width: 8),
-                  Text(
-                    _userEmail!,
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 14,
+                  Icon(Icons.person, color: Colors.blue.shade600, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Welcome, $_userName!',
+                          style: TextStyle(
+                            color: Colors.blue.shade800,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (_userEmail != null) ...[
+                          SizedBox(height: 4),
+                          Text(
+                            _userEmail!,
+                            style: TextStyle(
+                              color: Colors.blue.shade600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
