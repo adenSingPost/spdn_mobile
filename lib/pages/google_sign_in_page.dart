@@ -123,6 +123,7 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
   // Method to validate JWT token
   bool _validateJwtToken(String token) {
     try {
+      
       // Split the JWT token into parts
       List<String> parts = token.split('.');
       if (parts.length != 3) {
@@ -133,11 +134,11 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
       String header = parts[0];
       String payload = parts[1];
       String signature = parts[2];
-      
+            
       // Decode the payload to check claims
       String decodedPayload = utf8.decode(base64Url.decode(base64Url.normalize(payload)));
       Map<String, dynamic> claims = json.decode(decodedPayload);
-      
+            
       // Check if token is expired
       if (claims.containsKey('exp')) {
         int exp = claims['exp'];
@@ -154,9 +155,10 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
         return false;
       }
       
-      // Verify JWT signature
+      // Verify JWT signature with shared secret
       String dataToSign = '$header.$payload';
       String expectedSignature = _generateHmacSignature(dataToSign, Constants.jwtSecret);
+      
       
       if (signature != expectedSignature) {
         print('JWT signature verification failed');

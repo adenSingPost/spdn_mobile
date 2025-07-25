@@ -35,32 +35,99 @@ class AuthService {
     }
   
     try {
+      print('Refreshing access token...');
       final response = await http.post(
         Uri.parse('${Constants.middlewareUrl}/auth/refresh-token'),
         headers: {
           'Content-Type': 'application/json',
-          'X-App-ID': Constants.appId,
-          'X-API-Key': Constants.apiKey,
         },
         body: jsonEncode({'refreshToken': storedRefreshToken}),
       );
 
+      print('Refresh response status: ${response.statusCode}');
+      print('Refresh response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         String newAccessToken = responseData['accessToken'];
+        String newRefreshToken = responseData['refreshToken'];
+        Map<String, dynamic> userData = responseData['user'];
 
-        // Save new access token
+        // Save new tokens and user data
         await _storage.write(key: 'accessToken', value: newAccessToken);
+        await _storage.write(key: 'refreshToken', value: newRefreshToken);
+        await _storage.write(key: 'user', value: jsonEncode(userData));
 
+        print('Tokens refreshed successfully');
         return newAccessToken;
       } else {
+        print('Token refresh failed with status: ${response.statusCode}');
         await _clearTokens();  // Clear both tokens
         _redirectToSignIn(context);  // Redirect to Google Sign-In page
         return null;
       }
     } catch (error) {
+      print('Error refreshing token: $error');
+      await _clearTokens();  // Clear both tokens
+      _redirectToSignIn(context);  // Redirect to Google Sign-In page
       return null;
     }
+  }
+
+  // Method to manually refresh tokens
+  Future<bool> refreshTokens(BuildContext context) async {
+    String? storedRefreshToken = await _storage.read(key: 'refreshToken');
+    if (storedRefreshToken == null) {
+      await _clearTokens();
+      _redirectToSignIn(context);
+      return false;
+    }
+
+    try {
+      print('Manually refreshing tokens...');
+      final response = await http.post(
+        Uri.parse('${Constants.backendUrl}/auth/refresh-token'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'refreshToken': storedRefreshToken}),
+      );
+
+      print('Manual refresh response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        String newAccessToken = responseData['accessToken'];
+        String newRefreshToken = responseData['refreshToken'];
+        Map<String, dynamic> userData = responseData['user'];
+
+        // Save new tokens and user data
+        await _storage.write(key: 'accessToken', value: newAccessToken);
+        await _storage.write(key: 'refreshToken', value: newRefreshToken);
+        await _storage.write(key: 'user', value: jsonEncode(userData));
+
+        print('Manual token refresh successful');
+        return true;
+      } else {
+        print('Manual token refresh failed with status: ${response.statusCode}');
+        await _clearTokens();
+        _redirectToSignIn(context);
+        return false;
+      }
+    } catch (error) {
+      print('Error during manual token refresh: $error');
+      await _clearTokens();
+      _redirectToSignIn(context);
+      return false;
+    }
+  }
+
+  // Method to check if tokens need refresh
+  Future<bool> needsTokenRefresh() async {
+    String? accessToken = await _storage.read(key: 'accessToken');
+    if (accessToken == null) return true;
+    
+    return JwtDecoder.isExpired(accessToken);
   }
 
   // Log out the user by deleting tokens and user data
