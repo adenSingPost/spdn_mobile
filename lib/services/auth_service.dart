@@ -86,7 +86,7 @@ class AuthService {
     try {
       print('Manually refreshing tokens...');
       final response = await http.post(
-        Uri.parse('${Constants.backendUrl}/auth/refresh-token'),
+        Uri.parse('${Constants.middlewareUrl}/auth/refresh-token'),
         headers: {
           'Content-Type': 'application/json',
         },
