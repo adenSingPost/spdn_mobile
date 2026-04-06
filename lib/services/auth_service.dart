@@ -5,7 +5,6 @@ import 'package:jwt_decoder/jwt_decoder.dart';  // For decoding JWT token
 import '../utils/constants.dart';
 import 'package:flutter/material.dart'; // For Navigator
 import '../pages/google_sign_in_page.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class AuthService {
   final FlutterSecureStorage _storage = FlutterSecureStorage();
@@ -37,9 +36,12 @@ class AuthService {
     try {
       print('Refreshing access token...');
       final response = await http.post(
-        Uri.parse('${Constants.middlewareUrl}/auth/refresh-token'),
+        Uri.parse('${Constants.middlewareUrl}/refresh-token'),
         headers: {
           'Content-Type': 'application/json',
+          // verifyAppKey expects these headers
+          'X-App-ID': Constants.appId,
+          'X-API-Key': Constants.apiKey,
         },
         body: jsonEncode({'refreshToken': storedRefreshToken}),
       );
@@ -86,9 +88,12 @@ class AuthService {
     try {
       print('Manually refreshing tokens...');
       final response = await http.post(
-        Uri.parse('${Constants.middlewareUrl}/auth/refresh-token'),
+        Uri.parse('${Constants.middlewareUrl}/refresh-token'),
         headers: {
           'Content-Type': 'application/json',
+          // verifyAppKey expects these headers
+          'X-App-ID': Constants.appId,
+          'X-API-Key': Constants.apiKey,
         },
         body: jsonEncode({'refreshToken': storedRefreshToken}),
       );

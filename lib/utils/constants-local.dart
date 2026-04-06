@@ -15,7 +15,6 @@ class Constants {
   
   // Encryption
   static const String secretKey = 'SPDN_SECRET_KEY_2024';
-  static const String jwtSecret = 'ab5ee8974ca4dcefd7f55554102ac2e79e319be9f1c1e60330b4ac49f8759407b0ee458fefb0d26ec70b91021bbee742611c4dc45f55e3ee1541c029d430ec2b';
   
   // API URLs SPDN BACKEND
   static const String backendUrl = 'http://localhost:3000';
