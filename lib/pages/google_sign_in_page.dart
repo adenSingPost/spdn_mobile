@@ -10,6 +10,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import '../utils/constants.dart';
 import './main_menu_page.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_version_footer.dart';
 import './sign_up_page.dart';
 
 void main() {
@@ -297,6 +298,8 @@ class _GoogleSignInPageState extends State<GoogleSignInPage> {
                   ),
                 ),
               ),
+              SizedBox(height: 32),
+              const AppVersionFooter(),
             ],
           ),
         ),

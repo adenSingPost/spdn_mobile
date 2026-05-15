@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 
+import '../utils/transaction_image.dart';
+
 class ReturnMailboxChecklist extends StatefulWidget {
   final String postalCode;
   final String buildingNumber;
@@ -24,7 +26,6 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
   int? _returnMailboxStatus;
   TextEditingController _observationsController = TextEditingController();
   List<String> _photoPaths = []; // Stores multiple photos
-  bool _formCompleted = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -49,7 +50,7 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
       setState(() {
         _returnMailboxStatus = draft['returnMailboxStatus'];
         _observationsController.text = draft['observations'] ?? '';
-        _photoPaths = List<String>.from(draft['photoPaths'] ?? []);
+        _photoPaths = filterExistingPhotoPaths(draft['photoPaths'] ?? []);
       });
     }
   }
@@ -117,7 +118,6 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
     }
 
     await _saveDraft();
-    setState(() => _formCompleted = true);
     widget.onSave(true);
     Navigator.pop(context);
   }
@@ -133,8 +133,9 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
 
     final XFile? photo = await _picker.pickImage(source: source);
     if (photo != null) {
+      final persisted = await persistQcDraftPhoto(photo);
       setState(() {
-        _photoPaths.add(photo.path);
+        _photoPaths.add(persisted);
       });
     }
   }

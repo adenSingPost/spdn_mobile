@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 class MasterdoorTransaction {
   final int id;
   final int checklistOption;
@@ -24,11 +22,7 @@ class MasterdoorTransaction {
   String get displayTitle => '${mainDraft.blockNumber} - ${mainDraft.postalCode}';
 
   factory MasterdoorTransaction.fromJson(Map<String, dynamic> json) {
-    // Parse imageList from string to List<String>
-    List<String> imageList = [];
-    if (json['imageList'] != null && json['imageList'].toString().isNotEmpty) {
-      imageList = json['imageList'].toString().split(',');
-    }
+    List<String> imageList = _parseImageListField(json['imageList']);
 
     return MasterdoorTransaction(
       id: json['id'],
@@ -45,6 +39,23 @@ class MasterdoorTransaction {
   String get postalCode => mainDraft.postalCode.toString();
   String get buildingNumber => mainDraft.blockNumber;
   String get date => createdAt;
+
+  static List<String> _parseImageListField(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    final s = raw.toString().trim();
+    if (s.isEmpty) return [];
+    return s
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
 }
 
 class MainDraft {

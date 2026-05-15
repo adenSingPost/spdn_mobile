@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:convert';
 import 'dart:io';
 import '../../models/return_mailbox.dart';
 import '../../services/update_transaction.dart';
+import '../../utils/transaction_image.dart';
 
 class ReturnMailboxChecklist extends StatefulWidget {
   final ReturnMailboxTransaction transaction;
@@ -22,28 +21,22 @@ class ReturnMailboxChecklist extends StatefulWidget {
 
 class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
   int? _returnMailboxStatus;
-  TextEditingController _observationsController = TextEditingController();
-  List<String> _photoPaths = []; // Stores multiple photos
-  bool _formCompleted = false;
+  final TextEditingController _observationsController = TextEditingController();
+  List<String> _existingImageUrls = [];
+  final List<String> _newPhotoPaths = [];
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    // Initialize the form with transaction data
-    print('ReturnMailboxChecklist - Transaction Details:');
-    print('  ID: ${widget.transaction.id}');
-    print('  Checklist Option: ${widget.transaction.checklistOption}');
-    print('  Observation: ${widget.transaction.observation}');
-    print('  Postal Code: ${widget.transaction.postalCode}');
-    print('  Building Number: ${widget.transaction.buildingNumber}');
-    
-    // Ensure checklistOption is properly set
     _returnMailboxStatus = widget.transaction.checklistOption;
-    _observationsController.text = widget.transaction.observation ?? '';
-    
-    // Debug log the initialized status
-    print('Initialized _returnMailboxStatus: $_returnMailboxStatus');
+    _observationsController.text = widget.transaction.observation;
+    _existingImageUrls = widget.transaction.imageList
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .map(resolveTransactionImageUrl)
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   @override
@@ -64,7 +57,6 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
       return;
     }
 
-    // Show confirmation dialog
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -89,7 +81,6 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
       },
     );
 
-    // If user cancelled, return
     if (confirmed != true) {
       return;
     }
@@ -100,11 +91,10 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
         widget.transaction,
         _returnMailboxStatus!,
         _observationsController.text,
-        _photoPaths,
+        _newPhotoPaths,
       );
 
       if (success) {
-        setState(() => _formCompleted = true);
         widget.onSave(true);
         Navigator.pop(context);
       } else {
@@ -125,9 +115,8 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
     }
   }
 
-  /// Pick a photo from the gallery or camera
   Future<void> _pickPhoto(ImageSource source) async {
-    if (_photoPaths.length >= 5) {
+    if (_newPhotoPaths.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("You can upload a maximum of 5 photos.")),
       );
@@ -136,25 +125,41 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
 
     final XFile? photo = await _picker.pickImage(source: source);
     if (photo != null) {
+      final persisted = await persistQcDraftPhoto(photo);
       setState(() {
-        _photoPaths.add(photo.path);
+        _newPhotoPaths.add(persisted);
       });
     }
   }
 
-  /// Remove a photo
-  void _removePhoto(int index) {
+  void _removeNewPhoto(int index) {
     setState(() {
-      _photoPaths.removeAt(index);
+      _newPhotoPaths.removeAt(index);
     });
   }
 
-  /// Handle radio button selection logic
   void _onRadioChanged(int? value) {
-    print('Radio button changed to: $value');
     setState(() {
       _returnMailboxStatus = value;
     });
+  }
+
+  Widget _networkThumb(String url) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        url,
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 80,
+          height: 80,
+          color: Colors.grey.shade300,
+          child: const Icon(Icons.broken_image),
+        ),
+      ),
+    );
   }
 
   @override
@@ -166,7 +171,6 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Display postal code & building number
             Text(
               "Postal Code: ${widget.transaction.postalCode}",
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -177,14 +181,12 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
             ),
             const SizedBox(height: 10),
 
-            // Return Mailbox Checklist
             const Text(
               "Return Mailbox Checklist",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
 
-            // Radio buttons for mailbox status
             Column(
               children: [
                 RadioListTile<int>(
@@ -209,16 +211,27 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
             ),
             const SizedBox(height: 10),
 
-            // Observations text input
             TextField(
               controller: _observationsController,
               decoration: const InputDecoration(labelText: "Type observations"),
             ),
             const SizedBox(height: 10),
 
-            // Upload photo section
+            if (_existingImageUrls.isNotEmpty) ...[
+              const Text(
+                "Saved photos",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: _existingImageUrls.map(_networkThumb).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             const Text(
-              "Upload Photos (Max: 5)",
+              "Add photos (Max: 5)",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             Row(
@@ -236,12 +249,11 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
             ),
             const SizedBox(height: 10),
 
-            // Display uploaded photos
             Wrap(
               spacing: 8,
-              children: _photoPaths.asMap().entries.map((entry) {
-                int index = entry.key;
-                String photoPath = entry.value;
+              children: _newPhotoPaths.asMap().entries.map((entry) {
+                final index = entry.key;
+                final photoPath = entry.value;
                 return Stack(
                   alignment: Alignment.topRight,
                   children: [
@@ -252,7 +264,7 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
                       fit: BoxFit.cover,
                     ),
                     GestureDetector(
-                      onTap: () => _removePhoto(index),
+                      onTap: () => _removeNewPhoto(index),
                       child: const Icon(
                         Icons.cancel,
                         color: Colors.red,
@@ -264,7 +276,6 @@ class _ReturnMailboxChecklistState extends State<ReturnMailboxChecklist> {
             ),
             const SizedBox(height: 20),
 
-            // Save button
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

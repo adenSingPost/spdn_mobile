@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:convert';
 import 'dart:io';
 import '../../models/masterdoor.dart';
 import '../../services/update_transaction.dart';
-import 'package:http/http.dart' as http;
-import '../../utils/constants.dart';
-import '../../services/auth_service.dart';
+import '../../utils/transaction_image.dart';
 
 class MasterDoorPage extends StatefulWidget {
   final MasterdoorTransaction transaction;
@@ -25,17 +21,24 @@ class MasterDoorPage extends StatefulWidget {
 
 class _MasterDoorPageState extends State<MasterDoorPage> {
   int? _masterDoorStatus;
-  TextEditingController _observationsController = TextEditingController();
-  List<String> _photoPaths = []; // Store multiple photo paths
-  bool _formCompleted = false;
+  final TextEditingController _observationsController = TextEditingController();
+  /// From server — for review only (URLs).
+  List<String> _existingImageUrls = [];
+  /// New local files to upload on update.
+  final List<String> _newPhotoPaths = [];
   final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    // Initialize the form with transaction data
     _masterDoorStatus = widget.transaction.checklistOption;
     _observationsController.text = widget.transaction.observation ?? '';
+    _existingImageUrls = widget.transaction.imageList
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .map(resolveTransactionImageUrl)
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   @override
@@ -44,7 +47,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
     super.dispose();
   }
 
-  /// Save the form and exit
   void _saveForm() async {
     if (_masterDoorStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -55,7 +57,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
       return;
     }
 
-    // Show confirmation dialog
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -80,7 +81,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
       },
     );
 
-    // If user cancelled, return
     if (confirmed != true) {
       return;
     }
@@ -91,11 +91,10 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
         widget.transaction,
         _masterDoorStatus!,
         _observationsController.text,
-        _photoPaths,
+        _newPhotoPaths,
       );
 
       if (success) {
-        setState(() => _formCompleted = true);
         widget.onSave(true);
         Navigator.pop(context);
       } else {
@@ -116,9 +115,8 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
     }
   }
 
-  /// Pick a photo from gallery or capture a new photo
   Future<void> _pickPhoto(ImageSource source) async {
-    if (_photoPaths.length >= 5) {
+    if (_newPhotoPaths.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("You can upload a maximum of 5 photos.")),
       );
@@ -127,24 +125,41 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
 
     final XFile? photo = await _picker.pickImage(source: source);
     if (photo != null) {
+      final persisted = await persistQcDraftPhoto(photo);
       setState(() {
-        _photoPaths.add(photo.path);
+        _newPhotoPaths.add(persisted);
       });
     }
   }
 
-  /// Remove a selected photo
-  void _removePhoto(int index) {
+  void _removeNewPhoto(int index) {
     setState(() {
-      _photoPaths.removeAt(index);
+      _newPhotoPaths.removeAt(index);
     });
   }
 
-  /// Handle radio button selection logic
   void _onRadioChanged(int? value) {
     setState(() {
       _masterDoorStatus = value;
     });
+  }
+
+  Widget _networkThumb(String url) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        url,
+        width: 70,
+        height: 70,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: 70,
+          height: 70,
+          color: Colors.grey.shade300,
+          child: const Icon(Icons.broken_image),
+        ),
+      ),
+    );
   }
 
   @override
@@ -157,7 +172,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Display postal code & building number
               Text(
                 "Postal Code: ${widget.transaction.postalCode}",
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -168,14 +182,12 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
               ),
               const SizedBox(height: 10),
 
-              // Masterdoor Checklist
               const Text(
                 "Masterdoor Checklist",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
 
-              // Radio buttons for masterdoor status
               Column(
                 children: [
                   RadioListTile<int>(
@@ -200,16 +212,30 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
               ),
               const SizedBox(height: 10),
 
-              // Observations text input
               TextField(
                 controller: _observationsController,
                 decoration: const InputDecoration(labelText: "Type other observations"),
               ),
               const SizedBox(height: 10),
 
-              // Upload or Capture Photo section
+              if (_existingImageUrls.isNotEmpty) ...[
+                const Text(
+                  "Saved photos",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _existingImageUrls
+                      .map((url) => _networkThumb(url))
+                      .toList(),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               const Text(
-                "Upload Photos (Max 5)",
+                "Add photos (Max 5)",
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               Row(
@@ -227,18 +253,18 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
               ),
               const SizedBox(height: 10),
 
-              // Display thumbnails of uploaded photos
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _photoPaths.map((path) {
-                  int index = _photoPaths.indexOf(path);
+                children: _newPhotoPaths.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final path = entry.value;
                   return Stack(
                     alignment: Alignment.topRight,
                     children: [
                       Image.file(File(path), width: 70, height: 70, fit: BoxFit.cover),
                       GestureDetector(
-                        onTap: () => _removePhoto(index),
+                        onTap: () => _removeNewPhoto(index),
                         child: Container(
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle),
@@ -251,7 +277,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
               ),
               const SizedBox(height: 20),
 
-              // Save button
               Center(
                 child: ElevatedButton(
                   onPressed: _saveForm,

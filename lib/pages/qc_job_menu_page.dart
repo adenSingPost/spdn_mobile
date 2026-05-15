@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'misdelivery_page.dart';
 import 'masterdoor_page.dart';
 import 'return_mailbox_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import './main_menu_page.dart';
 import '../services/qc/submit.dart'; // Import the DraftService
 import '../services/auth_service.dart'; // Import the AuthService
 
@@ -23,6 +20,7 @@ class _QCMainMenuState extends State<QCMainMenu> {
   bool misdeliveryDone = false;
   bool masterdoorDone = false;
   bool returnMailboxDone = false;
+  bool _isSubmitting = false;
 
   // Create instances of AuthService and DraftService
   final AuthService _authService = AuthService();
@@ -45,15 +43,21 @@ class _QCMainMenuState extends State<QCMainMenu> {
 
   bool get isAllCompleted => misdeliveryDone && masterdoorDone && returnMailboxDone;
 
-  // _submitAll method to call sendAllDraftsToBackend
   Future<void> _submitAll(BuildContext context) async {
-    // Call sendAllDraftsToBackend to submit drafts to the backend
-    await _draftService.sendAllDraftsToBackend(context, widget.postalCode, widget.nest); 
-
-    // You can show a confirmation message after submitting drafts
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('All drafts submitted successfully!')),
-    );
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
+      await _draftService.sendAllDraftsToBackend(
+        context,
+        widget.postalCode,
+        widget.nest,
+      );
+      // On success, submit.dart navigates to MainMenu — no snackbar here.
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
   Future<void> _clearAllDraft(BuildContext context) async {
     // Call sendAllDraftsToBackend to submit drafts to the backend
@@ -145,8 +149,26 @@ Future<bool> _onWillPop() async {
           ),
           SizedBox(height: 20),
           ElevatedButton(
-            onPressed: isAllCompleted ? () => _submitAll(context) : null,
-            child: Text('Submit All'),
+            onPressed: (isAllCompleted && !_isSubmitting)
+                ? () => _submitAll(context)
+                : null,
+            child: _isSubmitting
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Submitting…'),
+                    ],
+                  )
+                : Text('Submit All'),
           ),
         ],
       ),

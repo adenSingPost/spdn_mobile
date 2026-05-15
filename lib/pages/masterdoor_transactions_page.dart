@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/masterdoor.dart';
 import '../services/transaction.dart';
+import '../utils/api_datetime_format.dart';
 
 class MasterdoorTransactionsPage extends StatefulWidget {
   const MasterdoorTransactionsPage({Key? key}) : super(key: key);
@@ -97,7 +98,9 @@ class _MasterdoorTransactionsPageState extends State<MasterdoorTransactionsPage>
                 if (transaction.observation != null && transaction.observation!.isNotEmpty)
                   Text('Observation: ${transaction.observation}'),
                 Text('Status: ${transaction.checklistOption}'),
-                Text('Created: ${transaction.createdAt}'),
+                Text(
+                  'Created: ${formatApiDateTimeSingapore(transaction.createdAt)}',
+                ),
               ],
             ),
             onTap: () {

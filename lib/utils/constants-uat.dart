@@ -1,5 +1,6 @@
 class Constants {
   // App Configuration
+  static const String appName = 'SPDN QC UAT';
   static const String appId = 'SPDN';
   static const String apiKey = 'sk_spdn_7f8d9e2b4a1c3f6e9d8b5a2c4f7e9d8b';
   static const String middlewareUrl = 'https://uat.login.singpost.com/one-login/api/auth';
@@ -8,7 +9,7 @@ class Constants {
   // Web Auth URLs - using localhost:4200
   static const String webAuthUrl = 'https://uat.login.singpost.com/auth';
   static const String webCallbackUrl = 'spdn://auth/callback';
-  static const String cleanUrl = 'http://localhost:49514/';
+  static const String cleanUrl = '';
   
   // Google OAuth URLs (keeping for reference)
   static const String googleAuthUrl = '$middlewareUrl/auth/google';

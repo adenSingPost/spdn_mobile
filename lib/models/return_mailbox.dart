@@ -20,14 +20,11 @@ class ReturnMailboxTransaction {
   });
 
   factory ReturnMailboxTransaction.fromJson(Map<String, dynamic> json) {
-
     return ReturnMailboxTransaction(
       id: json['id'] ?? 0,
-      checklistOption: json['checklist'] ?? 0,
+      checklistOption: json['checklist_option'] ?? json['checklist'] ?? 0,
       observation: json['observation'] ?? '',
-      imageList: json['imageList'] != null && json['imageList'].toString().isNotEmpty
-          ? json['imageList'].toString().split(',')
-          : [],
+      imageList: _parseImageListField(json['imageList']),
       mainDraftId: json['main_draft_id'] ?? 0,
       createdAt: json['createdAt'] ?? '',
       updatedAt: json['updatedAt'] ?? '',
@@ -47,6 +44,23 @@ class ReturnMailboxTransaction {
   String get postalCode => mainDraft?.postalCode.toString() ?? '';
   String get buildingNumber => mainDraft?.blockNumber ?? '';
   String get date => createdAt;
+
+  static List<String> _parseImageListField(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    final s = raw.toString().trim();
+    if (s.isEmpty) return [];
+    return s
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
 }
 
 class MainDraft {

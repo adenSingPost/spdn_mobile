@@ -80,16 +80,29 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
   }
 
 Future<void> _saveDraft() async {
-  _updateRowDataFromControllers();
+  if (!_noMisdeliveryFound) {
+    _updateRowDataFromControllers();
+  }
   SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  // Remove controllers before saving because they cannot be encoded.
-  List<Map<String, dynamic>> dataToSave = _inputs.map((row) {
-    Map<String, dynamic> copy = Map<String, dynamic>.from(row);
-    copy.remove('foundAtControllers');
-    copy.remove('meantForControllers');
-    return copy;
-  }).toList();
+  // When "No misdelivery found", persist empty {} / {} so submit matches transaction record.
+  final List<Map<String, dynamic>> dataToSave;
+  if (_noMisdeliveryFound) {
+    dataToSave = [
+      {
+        'isPostalCode': false,
+        'foundAt': <String, dynamic>{},
+        'meantFor': <String, dynamic>{},
+      },
+    ];
+  } else {
+    dataToSave = _inputs.map((row) {
+      Map<String, dynamic> copy = Map<String, dynamic>.from(row);
+      copy.remove('foundAtControllers');
+      copy.remove('meantForControllers');
+      return copy;
+    }).toList();
+  }
 
   // Create a Map to store both the draft and checkbox state
   Map<String, dynamic> data = {
@@ -120,8 +133,18 @@ Future<void> _loadDraft() async {
     _noMisdeliveryFound = savedCheckbox;
 
     // Load the draft data
-    List<dynamic> loaded = data['draft'];
-    _inputs = loaded.map((e) => e as Map<String, dynamic>).toList();
+    List<dynamic> loaded = data['draft'] ?? [];
+    if (_noMisdeliveryFound) {
+      _inputs = [
+        {
+          'isPostalCode': false,
+          'foundAt': <String, dynamic>{},
+          'meantFor': <String, dynamic>{},
+        },
+      ];
+    } else {
+      _inputs = loaded.map((e) => e as Map<String, dynamic>).toList();
+    }
 
     // Initialize controllers for the loaded rows
     for (var row in _inputs) {
@@ -159,15 +182,16 @@ Future<void> _loadDraft() async {
   }
 
 void _saveForm() async {
-  // Check if there are rows or if "No Misdelivery Found" is checked
-  if ((_inputs.isEmpty && !_noMisdeliveryFound) || (_inputs.isNotEmpty && !_areAllRowsFilled())) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-            "Please fill in all fields in each row or remove empty rows before saving, or ensure 'No Misdelivery Found' is checked."),
-      ),
-    );
-    return;
+  if (!_noMisdeliveryFound) {
+    if (_inputs.isEmpty || !_areAllRowsFilled()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              "Please fill in all fields in each row or remove empty rows before saving, or check 'No misdelivery found'."),
+        ),
+      );
+      return;
+    }
   }
 
   await _saveDraft();

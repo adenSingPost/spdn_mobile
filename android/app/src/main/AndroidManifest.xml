@@ -3,7 +3,7 @@
 
     <application
         android:name="${applicationName}" 
-        android:label="spdn_mobile"
+        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher">
         
         <!-- MainActivity settings -->

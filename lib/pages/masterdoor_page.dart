@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 
+import '../utils/transaction_image.dart';
+
 class MasterDoorPage extends StatefulWidget {
   final String postalCode;
   final String buildingNumber;
@@ -24,7 +26,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
   int? _masterDoorStatus;
   TextEditingController _observationsController = TextEditingController();
   List<String> _photoPaths = []; // Store multiple photo paths
-  bool _formCompleted = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -49,7 +50,7 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
       setState(() {
         _masterDoorStatus = draft['masterDoorStatus'];
         _observationsController.text = draft['observations'] ?? '';
-        _photoPaths = List<String>.from(draft['photoPaths'] ?? []);
+        _photoPaths = filterExistingPhotoPaths(draft['photoPaths'] ?? []);
       });
     }
   }
@@ -116,7 +117,6 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
     }
 
     await _saveDraft();
-    setState(() => _formCompleted = true);
     widget.onSave(true);
     Navigator.pop(context);
   }
@@ -132,8 +132,9 @@ class _MasterDoorPageState extends State<MasterDoorPage> {
 
     final XFile? photo = await _picker.pickImage(source: source);
     if (photo != null) {
+      final persisted = await persistQcDraftPhoto(photo);
       setState(() {
-        _photoPaths.add(photo.path);
+        _photoPaths.add(persisted);
       });
     }
   }

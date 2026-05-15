@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/misdelivery.dart';
 import '../../services/update_transaction.dart';
 
@@ -19,9 +17,28 @@ class MisdeliveryPage extends StatefulWidget {
 }
 
 class _MisdeliveryPageState extends State<MisdeliveryPage> {
-  bool _formCompleted = false;
   bool _noMisdeliveryFound = false; // Checkbox state
   List<Map<String, dynamic>> _inputs = []; // Holds the dynamic row data
+
+  /// True when map is {} or only null/blank values (matches API "no misdelivery" rows).
+  bool _isEmptyLocationMap(Map<String, dynamic> m) {
+    if (m.isEmpty) return true;
+    for (final v in m.values) {
+      if (v == null) continue;
+      if (v.toString().trim().isNotEmpty) return false;
+    }
+    return true;
+  }
+
+  bool _rowHasOnlyEmptyLocations(Map<String, dynamic> row) {
+    final fa = row['foundAt'];
+    final mf = row['meantFor'];
+    final faMap =
+        fa is Map ? Map<String, dynamic>.from(fa) : <String, dynamic>{};
+    final mfMap =
+        mf is Map ? Map<String, dynamic>.from(mf) : <String, dynamic>{};
+    return _isEmptyLocationMap(faMap) && _isEmptyLocationMap(mfMap);
+  }
 
   @override
   void initState() {
@@ -52,7 +69,13 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
         'meantFor': Map<String, dynamic>.from(m.meantFor),
       };
     }).toList();
-    
+
+    // Pre-check "No misdelivery found" when server sent only empty {} / {} rows
+    if (_inputs.isNotEmpty &&
+        _inputs.every((row) => _rowHasOnlyEmptyLocations(row))) {
+      _noMisdeliveryFound = true;
+    }
+
     // Debug log the inputs
     print('Initialized inputs:');
     for (var input in _inputs) {
@@ -156,19 +179,22 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
   }
 
   void _saveForm() async {
-    // Check if there are rows or if "No Misdelivery Found" is checked
-    if ((_inputs.isEmpty && !_noMisdeliveryFound) || (_inputs.isNotEmpty && !_areAllRowsFilled())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              "Please fill in all fields in each row or remove empty rows before submitting"),
-        ),
-      );
-      return;
+    if (!_noMisdeliveryFound) {
+      if (_inputs.isEmpty || !_areAllRowsFilled()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                "Please fill in all fields in each row or remove empty rows before submitting, or check 'No misdelivery found'."),
+          ),
+        );
+        return;
+      }
     }
 
-    _updateRowDataFromControllers();
-    
+    if (!_noMisdeliveryFound) {
+      _updateRowDataFromControllers();
+    }
+
     // Debug log before preparing data for update
     print('DEBUG: Preparing data for update:');
     for (var input in _inputs) {
@@ -178,14 +204,27 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
       print('DEBUG:   FoundAt: ${input['foundAt']}');
       print('DEBUG:   MeantFor: ${input['meantFor']}');
     }
-    
+
     // Remove controllers before saving because they cannot be sent to API
-    List<Map<String, dynamic>> dataToUpdate = _inputs.map((row) {
-      Map<String, dynamic> copy = Map<String, dynamic>.from(row);
-      copy.remove('foundAtControllers');
-      copy.remove('meantForControllers');
-      return copy;
-    }).toList();
+    List<Map<String, dynamic>> dataToUpdate;
+    if (_noMisdeliveryFound) {
+      dataToUpdate = _inputs.map((row) {
+        final id = row['id'];
+        return {
+          'id': id,
+          'isPostalCode': false,
+          'foundAt': <String, dynamic>{},
+          'meantFor': <String, dynamic>{},
+        };
+      }).toList();
+    } else {
+      dataToUpdate = _inputs.map((row) {
+        Map<String, dynamic> copy = Map<String, dynamic>.from(row);
+        copy.remove('foundAtControllers');
+        copy.remove('meantForControllers');
+        return copy;
+      }).toList();
+    }
 
     // Show confirmation dialog
     final bool? confirmed = await showDialog<bool>(
@@ -230,7 +269,6 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
       );
 
       if (success) {
-        setState(() => _formCompleted = true);
         widget.onSave(true);
         Navigator.pop(context);
       } else {
@@ -470,6 +508,16 @@ class _MisdeliveryPageState extends State<MisdeliveryPage> {
             ),
             const SizedBox(height: 10),
             // Single row for buttons.
+            CheckboxListTile(
+              title: const Text('No misdelivery found'),
+              value: _noMisdeliveryFound,
+              onChanged: (bool? value) {
+                setState(() {
+                  _noMisdeliveryFound = value ?? false;
+                });
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [

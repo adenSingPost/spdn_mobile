@@ -1,5 +1,6 @@
 class Constants {
   // App Configuration
+  static const String appName = 'SPDN QC';
   static const String appId = 'SPDN';
   static const String apiKey = 'sk_spdn_7f8d9e2b4a1c3f6e9d8b5a2c4f7e9d8b';
   static const String middlewareUrl = 'https://login.singpost.com/one-login/api/auth';
@@ -20,3 +21,5 @@ class Constants {
   // static const String backendUrl = 'http://localhost:3000';
   static const String backendUrl = 'https://aksmobile.singpost.com/miniapp/spdn-qc-api';
 }
+
+

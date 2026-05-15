@@ -75,6 +75,20 @@ class DraftService {
       }
     }
 
+    // Misdelivery: ensure backend receives empty foundAt/meantFor when "no misdelivery found"
+    _normalizeMisdeliveryDraftForSubmit(combinedData);
+
+    // Debug: confirm what is sent (look for [submitAllDrafts] in logcat)
+    print('[submitAllDrafts] combinedData keys: ${combinedData.keys.toList()}');
+    if (combinedData.containsKey('misDeliveryDraft')) {
+      print(
+          '[submitAllDrafts] misDeliveryDraft (raw JSON): ${jsonEncode(combinedData['misDeliveryDraft'])}');
+    } else {
+      print(
+          '[submitAllDrafts] WARNING: misDeliveryDraft not in payload — SharedPreferences had no misDeliveryDraft key. '
+          'User must tap Save as Draft on Misdelivery before Submit All (or prefs were cleared).');
+    }
+
     // Get the valid access token
     String? validAccessToken = await _authService.getValidAccessToken(context);
 
@@ -195,6 +209,34 @@ class DraftService {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('All drafts have been cleared!')),
     );
+  }
+
+  static void _normalizeMisdeliveryDraftForSubmit(Map<String, dynamic> combinedData) {
+    final raw = combinedData['misDeliveryDraft'];
+    if (raw is! Map<String, dynamic>) return;
+    if (raw['noMisdeliveryFound'] != true) return;
+
+    final draft = raw['draft'];
+    if (draft is! List) return;
+
+    if (draft.isEmpty) {
+      raw['draft'] = [
+        {
+          'isPostalCode': false,
+          'foundAt': <String, dynamic>{},
+          'meantFor': <String, dynamic>{},
+        },
+      ];
+      return;
+    }
+
+    raw['draft'] = draft.map((e) {
+      final row = Map<String, dynamic>.from(e as Map);
+      row['foundAt'] = <String, dynamic>{};
+      row['meantFor'] = <String, dynamic>{};
+      row['isPostalCode'] = false;
+      return row;
+    }).toList();
   }
 
   String generateNewFilename(String draftKey, String postalCode, File imageFile, int index) {

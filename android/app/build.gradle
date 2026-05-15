@@ -40,12 +40,26 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.singpost.spdn_mobile"
+        // Base id (PROD). UAT overrides below.
+        applicationId "com.singpost.spdn.qc"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+    }
+
+    flavorDimensions "env"
+    productFlavors {
+        prod {
+            dimension "env"
+            applicationId "com.singpost.spdn.qc"
+        }
+        uat {
+            dimension "env"
+            applicationId "com.singpost.spdn.qc.uat"
+            versionNameSuffix "-uat"
+        }
     }
 
     buildTypes {

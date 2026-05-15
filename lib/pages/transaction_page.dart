@@ -6,6 +6,7 @@ import '../pages/transactions_edit_page/misdelivery_page.dart';
 import '../pages/transactions_edit_page/masterdoor_page.dart';
 import '../pages/transactions_edit_page/return_mailbox_page.dart';
 import '../services/transaction.dart'; // Assume the correct service is used for data
+import '../utils/api_datetime_format.dart';
 
 class TransactionsPage extends StatefulWidget {
   @override
@@ -184,17 +185,9 @@ class _TransactionsPageState extends State<TransactionsPage> with SingleTickerPr
                 title = tx.getDisplayTitle();
               }
               
-              // Format date and time
               String dateTime = '';
               if (subtitleProperty == 'date') {
-                final dateParts = tx.date.split("T");
-                if (dateParts.length > 1) {
-                  final date = dateParts[0];
-                  final time = dateParts[1].substring(0, 5); // Get HH:MM
-                  dateTime = '$date $time';
-                } else {
-                  dateTime = tx.date;
-                }
+                dateTime = formatApiDateTimeSingapore(tx.date);
               }
               
               String trailing = '';

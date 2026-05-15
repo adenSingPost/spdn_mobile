@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../pages/qc_postal_entry_page.dart';
 // import '../pages/reporting_menu_page.dart';
 import '../pages/transaction_page.dart';
+import '../widgets/app_version_footer.dart';
 
 class MainMenuPage extends StatefulWidget {
   @override
@@ -129,6 +130,7 @@ class _MainMenuPageState extends State<MainMenuPage> {
               ),
             ),
           ),
+          const AppVersionFooter(),
         ],
       ),
     );
